@@ -7,7 +7,7 @@
   },
   "servers": [
     {
-      "url": "https://rendio.dev/api",
+      "url": "https://rendio.dev",
       "description": "Production"
     }
   ],
@@ -268,7 +268,7 @@
     "parameters": {}
   },
   "paths": {
-    "/v1/render": {
+    "/api/v1/render": {
       "post": {
         "summary": "Render HTML or URL to PDF / PNG / JPEG",
         "description": "Converts HTML markup or a remote URL into a PDF (default), PNG, or JPEG. Set `response=url` (default) to receive a download link; set `response=buffer` to stream bytes directly. Exactly one of `html` or `source` must be supplied.",
@@ -634,7 +634,7 @@
         }
       }
     },
-    "/v1/files/{id}": {
+    "/api/v1/files/{id}": {
       "get": {
         "summary": "Get file metadata by ID",
         "description": "Returns metadata and the download URL for a previously rendered file owned by the authenticated user.",
@@ -701,7 +701,7 @@
         }
       }
     },
-    "/health": {
+    "/api/health": {
       "get": {
         "summary": "Liveness / readiness probe",
         "description": "Returns service health status. A 200 response with `status: \"healthy\"` indicates full readiness. `status: \"degraded\"` means at least one dependency is down. 503 is returned when the database is unreachable.",

@@ -1,5 +1,5 @@
 ---
-title: "POST /v1/render"
+title: "POST /api/v1/render"
 description: "Render HTML or a URL to PDF, PNG, or JPEG."
 api: "POST https://rendio.dev/api/v1/render"
 ---
@@ -178,7 +178,7 @@ Authorization: Bearer rk_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
 <ResponseField name="id" type="string">
-  Opaque file ID (format `rd_[a-f0-9]{16}`). Use with `GET /v1/files/{id}`.
+  Opaque file ID (format `rd_[a-f0-9]{16}`). Use with `GET /api/v1/files/{id}`.
 </ResponseField>
 <ResponseField name="url" type="string">CDN URL.</ResponseField>
 <ResponseField name="pages" type="integer">Page count (PDF only; 0 for screenshots).</ResponseField>

@@ -4,7 +4,7 @@ description: "pdfs.create() and pdfs.get() — method signatures, parameters, re
 ---
 
 Method-level reference for the `pdfs` resource. Parameter semantics are
-shared with [`POST /v1/render`](/api-reference/render) — this page focuses
+shared with [`POST /api/v1/render`](/api-reference/render) — this page focuses
 on SDK ergonomics.
 
 ## `pdfs.create(params, options?)`
@@ -289,9 +289,9 @@ The Go SDK exposes additional variants for advanced use cases:
 
 ## Full parameter reference
 
-Every field on `POST /v1/render` is available here under its camelCase
+Every field on `POST /api/v1/render` is available here under its camelCase
 name (Node / Go) or snake_case equivalent (Python). See
-[POST /v1/render](/api-reference/render) for the complete parameter table,
+[POST /api/v1/render](/api-reference/render) for the complete parameter table,
 plan gates, and validation rules.
 
 ## Testing
@@ -320,7 +320,7 @@ so tests never hit the real API.
     };
 
     const server = setupServer(
-      http.post("http://localhost:9876/v1/render", () =>
+      http.post("http://localhost:9876/api/v1/render", () =>
         HttpResponse.json(mockPdf),
       ),
     );
@@ -361,7 +361,7 @@ so tests never hit the real API.
 
     @respx.mock
     def test_create_pdf():
-        respx.post("http://test/v1/render").mock(
+        respx.post("http://test/api/v1/render").mock(
             return_value=Response(200, json=MOCK_PDF)
         )
 
@@ -402,7 +402,7 @@ so tests never hit the real API.
         }
 
         server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-            if r.URL.Path != "/v1/render" {
+            if r.URL.Path != "/api/v1/render" {
                 t.Errorf("unexpected path: %s", r.URL.Path)
             }
             w.Header().Set("Content-Type", "application/json")

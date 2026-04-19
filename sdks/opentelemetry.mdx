@@ -353,7 +353,7 @@ import { UndiciInstrumentation } from "@opentelemetry/instrumentation-undici";
 
 new UndiciInstrumentation({
   ignoreOutgoingRequestHook(req) {
-    return req.origin?.includes("rendio.dev/api") ?? false;
+    return req.origin?.includes("rendio.dev") ?? false;
   },
 });
 ```

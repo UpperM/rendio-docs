@@ -10,7 +10,7 @@ yet — this is the plan to review before executing.
 
 | # | Severity | File:Line | Wrong claim | Correct source | Fix |
 |---|---|---|---|---|---|
-| F0 | **CRITICAL** | 19 files across all docs | Base URL `https://api.rendio.dev` used everywhere | Actual URL is `https://rendio.dev/api` | Global find-replace `api.rendio.dev` → `rendio.dev/api` in all MDX + `openapi.json` + `generate-openapi.ts`. Also update `openapi.json` server URL and SDK default `baseUrl`. **19 occurrences**: `api-reference/introduction.mdx`, `api-reference/render.mdx`, `api-reference/files.mdx`, `api-reference/health.mdx`, `authentication.mdx`, `quickstart.mdx`, `sdks/overview.mdx`, `sdks/idempotency.mdx`, `sdks/opentelemetry.mdx`, `guides/screenshots.mdx`, `vscode/overview.mdx`, `resources/chromium-versions.mdx`, `openapi.json` |
+| F0 | **DONE** | 19 files across all docs | Base URL `https://api.rendio.dev` used everywhere | Origin-only: `https://rendio.dev`; SDKs own the `/api/v1/*` path suffix | ✅ Applied 2026-04-19: `openapi.json` server → `https://rendio.dev`, paths → `/api/v1/render`, `/api/v1/files/{id}`, `/api/health`; SDK `baseUrl` default and `rendio.apiUrl` VSCode setting updated to `https://rendio.dev`; all prose `POST /v1/render` → `POST /api/v1/render`, mock paths in test examples updated. |
 | F1 | **HIGH** | `openapi.json:19` | `bearerFormat` says `rk_live_* or rk_test_*` | `auth.ts:55` — only `rk_live_` prefix exists | Remove `rk_test_*` from `generate-openapi.ts:116`, regenerate `openapi.json` |
 | F2 | **HIGH** | `sdks/retries-and-timeouts.mdx:66,155` | Code samples use `rk_test_...` as constructor arg | No `rk_test_` prefix exists in the system | Replace with `rk_live_...` in all code samples |
 | F3 | **MEDIUM** | `concepts/how-it-works.mdx:50` | "Most renders complete in under 100 ms" | Benchmarks: P50 13–1198 ms; only simple templates are sub-50 ms | Reconcile to "Simple templates render in under 50 ms; see [Benchmarks](/resources/benchmarks) for the full range" |
@@ -139,7 +139,7 @@ Ordered by user impact. Each item is scoped to the minimum viable addition.
 **Result**: Worked end-to-end. curl returned a valid PDF; Python script with idempotency and retry logic worked correctly.
 
 **New findings**:
-- F0 (CRITICAL): `api.rendio.dev` base URL is wrong everywhere → already captured above
+- F0 (DONE): `api.rendio.dev` / `rendio.dev/api` base URL was wrong everywhere → fixed 2026-04-19, see F0 row above
 - Idempotency "URL mode only" constraint buried mid-page in a table row → needs callout box
 - "JSON body must be byte-identical across retries" is a surprising footgun → needs explicit warning with example
 

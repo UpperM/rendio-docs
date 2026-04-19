@@ -4,21 +4,21 @@ description: "REST API for HTML-to-PDF rendering. JSON in, binary or URL out."
 ---
 
 The Rendio API is a small HTTP surface — three endpoints, JSON in, binary or
-URL out. All endpoints live under `https://rendio.dev/api`.
+URL out. All endpoints are served from `https://rendio.dev`.
 
 ## Base URL
 
 ```
-https://rendio.dev/api
+https://rendio.dev
 ```
 
 ## Endpoints
 
 | Method | Path | Purpose |
 |---|---|---|
-| `POST` | [`/v1/render`](/api-reference/render) | Render HTML or a URL to PDF/PNG/JPEG |
-| `GET` | `/v1/files/{id}` | Fetch metadata for a previously rendered file |
-| `GET` | `/health` | Liveness probe |
+| `POST` | [`/api/v1/render`](/api-reference/render) | Render HTML or a URL to PDF/PNG/JPEG |
+| `GET` | `/api/v1/files/{id}` | Fetch metadata for a previously rendered file |
+| `GET` | `/api/health` | Liveness probe |
 
 ## Authentication
 
@@ -55,7 +55,7 @@ On successful renders, additionally:
 
 ## Idempotency
 
-`POST /v1/render` supports the `Idempotency-Key` header for URL-mode requests.
+`POST /api/v1/render` supports the `Idempotency-Key` header for URL-mode requests.
 Send the same key with the same body within 24 hours and the API returns the
 cached response (`X-Idempotent-Replay: true`) instead of re-rendering.
 
@@ -84,6 +84,6 @@ See the full list at [Error codes](/api-reference/errors).
 
 ## Versioning
 
-The API is versioned under the `/v1/` path prefix. Breaking changes ship
-behind a new prefix (`/v2/`); bugfixes and backward-compatible additions ship
-in `/v1/`. The `/health` endpoint is unversioned.
+The API is versioned under the `/api/v1/` path prefix. Breaking changes ship
+behind a new prefix (`/api/v2/`); bugfixes and backward-compatible additions ship
+in `/api/v1/`. The `/api/health` endpoint is unversioned.

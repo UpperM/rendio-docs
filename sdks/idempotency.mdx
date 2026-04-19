@@ -3,7 +3,7 @@ title: "Idempotency"
 description: "Safe POST retries with Idempotency-Key."
 ---
 
-`POST /v1/render` supports `Idempotency-Key` for URL-mode requests. Send the
+`POST /api/v1/render` supports `Idempotency-Key` for URL-mode requests. Send the
 same key with the same body within 24 hours and the API returns the cached
 response instead of re-rendering — protecting you from double-billing on
 retries.

@@ -8,8 +8,8 @@ SDKs. For incident history, see [status.rendio.dev](https://status.rendio.dev).
 
 ## Conventions
 
-- **Breaking changes** ship behind a new `/vN/` path prefix — the current
-  `/v1/` is the only stable API. We do not break existing paths without
+- **Breaking changes** ship behind a new version prefix — the current
+  `/api/v1/` is the only stable API. We do not break existing paths without
   deprecation.
 - **Added** — new parameters, endpoints, or fields. Safe to adopt.
 - **Changed** — behaviour tweaks that are backward-compatible but may
@@ -34,15 +34,70 @@ SDKs. For incident history, see [status.rendio.dev](https://status.rendio.dev).
 
 ---
 
+## Unreleased — April 19, 2026
+
+### Changed
+
+- **SDK base URL convention (breaking for pre-release users).** All three
+  Tier-1 SDKs (Node, Python, Go) now own the `/api/v1/*` path suffix. Users
+  pass the **origin only** as `baseUrl` / `base_url` / `WithBaseURL`; the
+  SDK appends the correct path internally. Matches Stripe / Anthropic /
+  OpenAI conventions.
+  - Default `baseUrl` changed from `https://api.rendio.dev` (a subdomain
+    that was never deployed) to `https://rendio.dev`.
+  - SDK request construction changed from `{baseUrl}/v1/render` to
+    `{baseUrl}/api/v1/render`, and from `{baseUrl}/v1/files/{id}` to
+    `{baseUrl}/api/v1/files/{id}`.
+  - Env var name `RENDIO_BASE_URL` is unchanged — only the expected value
+    changes. Callers overriding it (dev, self-signed staging, proxies)
+    should set it to the origin only.
+
+### Fixed
+
+- **Standard error envelope on unmatched API routes.** Hitting an unknown
+  `/api/*` path now returns the canonical
+  `{ "error": { "code": "not_found", "message": "Not Found" } }` envelope
+  with a fresh `X-Rendio-Request-Id`, instead of the previous
+  non-conforming `{ "error": "Not Found" }` string. Security headers
+  (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`) are now
+  applied to this path.
+- **Standard error envelope on 405 Method Not Allowed.** Sending a non-POST
+  request to `POST /api/v1/render` now returns the canonical envelope with
+  code `validation_error`, an `Allow: POST` header, security headers, and
+  an `X-Rendio-Request-Id`. Previously returned a non-conforming string
+  error body.
+- **SDK error-parser hardening against malformed envelopes.** All three
+  Tier-1 SDKs now fall through to status-based typed error dispatch when
+  the response body does not match the envelope contract (missing, null,
+  string, list, number, or empty-object `error` field). Previous behavior:
+  - **Python** raised `AttributeError: 'str' object has no attribute
+    'get'` — any malformed body crashed the caller.
+  - **Go** misclassified a 404 as `*InternalError`, breaking
+    `errors.As(err, &notFoundErr)`.
+  - **Node** produced an unhelpful `"HTTP 404"` message with code
+    `"unknown_error"`.
+  After the fix, a 404 always yields `NotFoundError` (or
+  `*NotFoundError`), a 500 always yields `InternalError`, etc., regardless
+  of body shape. A new regression guard ensures legitimate
+  `{"error":{"code":"unknown_error","message":"…"}}` responses still
+  surface the real backend message instead of being replaced by the raw
+  body snippet.
+- **405 Method Not Allowed → `ValidationError`.** All three Tier-1 SDKs
+  now map HTTP 405 to the `ValidationError` class and add 405 to the
+  non-retryable status set. Previously fell through to `InternalError` and
+  was ambiguously retryable.
+
+---
+
 ## v1.0.0 — April 13, 2026
 
 Initial public release.
 
 ### API
 
-- `POST /v1/render` — HTML / URL → PDF / PNG / JPEG.
-- `GET /v1/files/{id}` — metadata for a previously rendered file.
-- `GET /health` — liveness probe.
+- `POST /api/v1/render` — HTML / URL → PDF / PNG / JPEG.
+- `GET /api/v1/files/{id}` — metadata for a previously rendered file.
+- `GET /api/health` — liveness probe.
 - URL mode: upload to CDN, return metadata + URL.
 - Buffer mode: raw bytes in the response body.
 - Page sizes: `A4`, `A3`, `Letter`, `Legal`, `Tabloid`.

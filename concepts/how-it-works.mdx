@@ -12,14 +12,14 @@ right `waitUntil` value.
 
 ```mermaid
 flowchart LR
-  A["Your app\nHTML + CSS + data"] -->|POST /v1/render| B["Gateway\nValidate · Auth · Quota"]
+  A["Your app\nHTML + CSS + data"] -->|POST /api/v1/render| B["Gateway\nValidate · Auth · Quota"]
   B --> C["Worker\nChromium · Render"]
   C --> D["CDN / You\nPDF bytes or URL"]
 ```
 
 ### 1 — Your request hits the gateway
 
-`POST /v1/render` is received by the gateway. In this single step it:
+`POST /api/v1/render` is received by the gateway. In this single step it:
 
 - Parses and validates the body against the Zod schema (fails fast with
   `validation_error` / `html_too_large`).
