@@ -6,204 +6,202 @@ description: "Production-quality invoice PDF with Handlebars + Rendio, end-to-en
 Build a professional invoice PDF with a Handlebars template, render it
 through Rendio, and email the CDN link — all in one end-to-end example.
 
-<Steps>
-  <Step title="Install">
-    ```bash
-    npm install rendio
-    ```
+## 1. Install
 
-    Set your key:
+```bash
+npm install rendio
+```
 
-    ```bash
-    export RENDIO_API_KEY=rk_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-    ```
-  </Step>
+Set your key:
 
-  <Step title="Template">
-    ```html
-    <!-- templates/invoice.html -->
-    <html>
-      <head>
-        <style>
-          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-          @page { margin: 20mm 24mm; }
-          * { box-sizing: border-box; }
-          body { font-family: 'Inter', sans-serif; font-size: 13px; color: #1a1a1a; margin: 0; line-height: 1.5; }
+```bash
+export RENDIO_API_KEY=rk_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
 
-          .header { display: flex; justify-content: space-between; padding-bottom: 24px; border-bottom: 2px solid #1a1a1a; margin-bottom: 40px; }
-          .company-name { font-size: 20px; font-weight: 700; }
-          .invoice-label { font-size: 28px; font-weight: 700; letter-spacing: -1px; }
-          .meta { font-size: 12px; color: #666; margin-top: 4px; }
+## 2. Template
 
-          .bill-section { margin-bottom: 40px; }
-          .bill-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #999; margin-bottom: 6px; }
-          .bill-name { font-weight: 600; font-size: 15px; }
+```html
+<!-- templates/invoice.html -->
+<html>
+  <head>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+      @page { margin: 20mm 24mm; }
+      * { box-sizing: border-box; }
+      body { font-family: 'Inter', sans-serif; font-size: 13px; color: #1a1a1a; margin: 0; line-height: 1.5; }
 
-          table { width: 100%; border-collapse: collapse; }
-          thead th { text-align: left; padding: 10px 12px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: #666; background: #f7f7f7; }
-          tbody td { padding: 12px; border-bottom: 1px solid #f0f0f0; }
+      .header { display: flex; justify-content: space-between; padding-bottom: 24px; border-bottom: 2px solid #1a1a1a; margin-bottom: 40px; }
+      .company-name { font-size: 20px; font-weight: 700; }
+      .invoice-label { font-size: 28px; font-weight: 700; letter-spacing: -1px; }
+      .meta { font-size: 12px; color: #666; margin-top: 4px; }
 
-          .totals { margin-top: 32px; display: flex; justify-content: flex-end; }
-          .totals-table { width: 280px; }
-          .totals-table td { padding: 6px 12px; }
-          .total-row td { font-weight: 700; font-size: 15px; border-top: 2px solid #1a1a1a; padding-top: 12px; }
+      .bill-section { margin-bottom: 40px; }
+      .bill-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #999; margin-bottom: 6px; }
+      .bill-name { font-weight: 600; font-size: 15px; }
 
-          .footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid #e5e5e5; font-size: 11px; color: #999; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <div>
-            <div class="company-name">{{company.name}}</div>
-            <div class="meta">{{company.email}}</div>
-            <div class="meta">{{company.address}}</div>
-          </div>
-          <div style="text-align: right;">
-            <div class="invoice-label">Invoice</div>
-            <div class="meta">#{{invoice.number}}</div>
-            <div class="meta" style="margin-top: 8px;">
-              Issued: {{invoice.date}}<br>
-              Due: {{invoice.dueDate}}
-            </div>
-          </div>
+      table { width: 100%; border-collapse: collapse; }
+      thead th { text-align: left; padding: 10px 12px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: #666; background: #f7f7f7; }
+      tbody td { padding: 12px; border-bottom: 1px solid #f0f0f0; }
+
+      .totals { margin-top: 32px; display: flex; justify-content: flex-end; }
+      .totals-table { width: 280px; }
+      .totals-table td { padding: 6px 12px; }
+      .total-row td { font-weight: 700; font-size: 15px; border-top: 2px solid #1a1a1a; padding-top: 12px; }
+
+      .footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid #e5e5e5; font-size: 11px; color: #999; }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <div>
+        <div class="company-name">{{company.name}}</div>
+        <div class="meta">{{company.email}}</div>
+        <div class="meta">{{company.address}}</div>
+      </div>
+      <div style="text-align: right;">
+        <div class="invoice-label">Invoice</div>
+        <div class="meta">#{{invoice.number}}</div>
+        <div class="meta" style="margin-top: 8px;">
+          Issued: {{invoice.date}}<br>
+          Due: {{invoice.dueDate}}
         </div>
+      </div>
+    </div>
 
-        <div class="bill-section">
-          <div class="bill-label">Bill to</div>
-          <div class="bill-name">{{client.name}}</div>
-          <div class="meta">{{client.email}}</div>
-          {{#if client.vatNumber}}
-          <div class="meta">VAT: {{client.vatNumber}}</div>
-          {{/if}}
-        </div>
+    <div class="bill-section">
+      <div class="bill-label">Bill to</div>
+      <div class="bill-name">{{client.name}}</div>
+      <div class="meta">{{client.email}}</div>
+      {{#if client.vatNumber}}
+      <div class="meta">VAT: {{client.vatNumber}}</div>
+      {{/if}}
+    </div>
 
-        <table>
-          <thead>
-            <tr>
-              <th>Description</th>
-              <th style="text-align: center;">Qty</th>
-              <th style="text-align: right;">Unit price</th>
-              <th style="text-align: right;">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {{#each items}}
-            <tr>
-              <td>{{description}}</td>
-              <td style="text-align: center;">{{qty}}</td>
-              <td style="text-align: right;">{{unitPrice}}</td>
-              <td style="text-align: right;">{{total}}</td>
-            </tr>
-            {{/each}}
-          </tbody>
-        </table>
+    <table>
+      <thead>
+        <tr>
+          <th>Description</th>
+          <th style="text-align: center;">Qty</th>
+          <th style="text-align: right;">Unit price</th>
+          <th style="text-align: right;">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each items}}
+        <tr>
+          <td>{{description}}</td>
+          <td style="text-align: center;">{{qty}}</td>
+          <td style="text-align: right;">{{unitPrice}}</td>
+          <td style="text-align: right;">{{total}}</td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
 
-        <div class="totals">
-          <table class="totals-table">
-            <tr><td>Subtotal</td><td style="text-align: right;">{{invoice.subtotal}}</td></tr>
-            {{#if invoice.taxRate}}
-            <tr><td>Tax ({{invoice.taxRate}}%)</td><td style="text-align: right;">{{invoice.tax}}</td></tr>
-            {{/if}}
-            <tr class="total-row">
-              <td>Total due</td>
-              <td style="text-align: right;">{{invoice.total}}</td>
-            </tr>
-          </table>
-        </div>
-
-        {{#if invoice.notes}}
-        <div class="footer">{{invoice.notes}}</div>
+    <div class="totals">
+      <table class="totals-table">
+        <tr><td>Subtotal</td><td style="text-align: right;">{{invoice.subtotal}}</td></tr>
+        {{#if invoice.taxRate}}
+        <tr><td>Tax ({{invoice.taxRate}}%)</td><td style="text-align: right;">{{invoice.tax}}</td></tr>
         {{/if}}
-      </body>
-    </html>
-    ```
-  </Step>
+        <tr class="total-row">
+          <td>Total due</td>
+          <td style="text-align: right;">{{invoice.total}}</td>
+        </tr>
+      </table>
+    </div>
 
-  <Step title="Render">
-    ```ts
-    import { readFileSync } from "node:fs";
-    import Rendio, { RendioError } from "rendio";
+    {{#if invoice.notes}}
+    <div class="footer">{{invoice.notes}}</div>
+    {{/if}}
+  </body>
+</html>
+```
 
-    const rendio = new Rendio();
-    const template = readFileSync("./templates/invoice.html", "utf-8");
+## 3. Render
 
-    try {
-      const pdf = await rendio.pdfs.create({
-        html: template,
-        data: {
-          company: {
-            name: "Acme Studio",
-            email: "billing@acmestudio.io",
-            address: "123 Design Street, Paris, France",
-          },
-          client: {
-            name: "Globex Corporation",
-            email: "accounts@globex.com",
-            vatNumber: "FR12345678901",
-          },
-          invoice: {
-            number: "2026-042",
-            date: "April 13, 2026",
-            dueDate: "April 27, 2026",
-            subtotal: "$3,600.00",
-            taxRate: 20,
-            tax: "$720.00",
-            total: "$4,320.00",
-            notes: "Payment due within 14 days. Thank you for your business.",
-          },
-          items: [
-            { description: "UI design — 20 hours", qty: 20, unitPrice: "$80.00", total: "$1,600.00" },
-            { description: "Frontend development — 25 hours", qty: 25, unitPrice: "$80.00", total: "$2,000.00" },
-          ],
-        },
-        pageSize: "A4",
-      });
+```ts
+import { readFileSync } from "node:fs";
+import Rendio, { RendioError } from "rendio";
 
-      console.log(pdf.url);
-      console.log(`${pdf.pages} page, ${(pdf.size / 1024).toFixed(1)} KB`);
-    } catch (err) {
-      if (err instanceof RendioError) {
-        console.error(`[${err.code}] ${err.message} (request ${err.requestId})`);
-      }
-      throw err;
-    }
-    ```
-  </Step>
+const rendio = new Rendio();
+const template = readFileSync("./templates/invoice.html", "utf-8");
 
-  <Step title="Email it">
-    For a link (PDF hosted on Rendio's CDN for 24h on Free, 30d on paid):
+try {
+  const pdf = await rendio.pdfs.create({
+    html: template,
+    data: {
+      company: {
+        name: "Acme Studio",
+        email: "billing@acmestudio.io",
+        address: "123 Design Street, Paris, France",
+      },
+      client: {
+        name: "Globex Corporation",
+        email: "accounts@globex.com",
+        vatNumber: "FR12345678901",
+      },
+      invoice: {
+        number: "2026-042",
+        date: "April 13, 2026",
+        dueDate: "April 27, 2026",
+        subtotal: "$3,600.00",
+        taxRate: 20,
+        tax: "$720.00",
+        total: "$4,320.00",
+        notes: "Payment due within 14 days. Thank you for your business.",
+      },
+      items: [
+        { description: "UI design — 20 hours", qty: 20, unitPrice: "$80.00", total: "$1,600.00" },
+        { description: "Frontend development — 25 hours", qty: 25, unitPrice: "$80.00", total: "$2,000.00" },
+      ],
+    },
+    pageSize: "A4",
+  });
 
-    ```ts
-    import { Resend } from "resend";
-    const resend = new Resend(process.env.RESEND_API_KEY);
+  console.log(pdf.url);
+  console.log(`${pdf.pages} page, ${(pdf.size / 1024).toFixed(1)} KB`);
+} catch (err) {
+  if (err instanceof RendioError) {
+    console.error(`[${err.code}] ${err.message} (request ${err.requestId})`);
+  }
+  throw err;
+}
+```
 
-    await resend.emails.send({
-      from: "billing@acmestudio.io",
-      to: "accounts@globex.com",
-      subject: "Invoice #2026-042 — Acme Studio",
-      html: `<p>Your invoice is ready.</p><p><a href="${pdf.url}">Download invoice</a></p>`,
-    });
-    ```
+## 4. Email it
 
-    For a direct attachment (no CDN dependency), re-render with
-    `response: "buffer"` and attach the bytes:
+For a link (PDF hosted on Rendio's CDN for 24h on Free, 30d on paid):
 
-    ```ts
-    const result = await rendio.pdfs.create({
-      html: template,
-      data: invoiceData,
-      response: "buffer",
-    });
+```ts
+import { Resend } from "resend";
+const resend = new Resend(process.env.RESEND_API_KEY);
 
-    await resend.emails.send({
-      from: "billing@acmestudio.io",
-      to: "accounts@globex.com",
-      subject: "Invoice #2026-042",
-      attachments: [{ filename: "invoice.pdf", content: Buffer.from(result.buffer) }],
-    });
-    ```
-  </Step>
-</Steps>
+await resend.emails.send({
+  from: "billing@acmestudio.io",
+  to: "accounts@globex.com",
+  subject: "Invoice #2026-042 — Acme Studio",
+  html: `<p>Your invoice is ready.</p><p><a href="${pdf.url}">Download invoice</a></p>`,
+});
+```
+
+For a direct attachment (no CDN dependency), re-render with
+`response: "buffer"` and attach the bytes:
+
+```ts
+const result = await rendio.pdfs.create({
+  html: template,
+  data: invoiceData,
+  response: "buffer",
+});
+
+await resend.emails.send({
+  from: "billing@acmestudio.io",
+  to: "accounts@globex.com",
+  subject: "Invoice #2026-042",
+  attachments: [{ filename: "invoice.pdf", content: Buffer.from(result.buffer) }],
+});
+```
 
 ## Production checklist
 
