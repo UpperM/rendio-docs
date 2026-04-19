@@ -19,7 +19,7 @@ Authorization: Bearer rk_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 | Header | Required | Purpose |
 |---|---|---|
-| `Authorization` | Yes | `Bearer <api-key>`. Omit only for `preview: true`. |
+| `Authorization` | Yes | `Bearer <api-key>`. Always required — `preview: true` does not bypass authentication. |
 | `Content-Type` | Yes | `application/json` |
 | `Idempotency-Key` | No | Deduplicates retries for 24h. URL mode only. Must match `[A-Za-z0-9_-]{1,255}`. |
 | `traceparent` | No | W3C trace propagation. If set, gateway spans are linked to your trace. |
@@ -67,8 +67,10 @@ Authorization: Bearer rk_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 </ParamField>
 
 <ParamField body="preview" type="boolean" default="false">
-  Render with a development watermark. Skips authentication and quota, but is
-  IP-rate-limited and must use `response: "buffer"`.
+  Render with a development watermark. Does not count against the monthly
+  quota. **Still requires a valid API key** — there is no keyless API
+  access. Must use `response: "buffer"`; rate-limited to 50/day per user on
+  Free (unlimited on Starter / Pro).
 </ParamField>
 
 <ParamField body="waitUntil" type="string" default="domcontentloaded">
@@ -205,7 +207,7 @@ Raw bytes in the response body.
 | `plan_limit` | 402 | `error.feature` names the gate (`url_to_pdf`, `tagged_pdf`, `custom_js_execution`, `external_resources`, `page_count`) |
 | `render_timeout` | 408 | Render > 30s |
 | `idempotency_conflict` | 409 | Key reused with different body (or still in flight) |
-| `html_too_large` | 413 | HTML / CSS > 1 MB |
+| `html_too_large` | 413 | `html` > 1 MB (CSS &gt; 1 MB returns `validation_error` / 400) |
 | `rate_limit_exceeded` | 429 | Retry after `Retry-After` seconds |
 | `quota_exceeded` | 429 | Monthly quota / spending cap reached |
 | `concurrent_limit_exceeded` | 429 | Too many in-flight renders |

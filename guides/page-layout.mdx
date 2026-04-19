@@ -1,0 +1,160 @@
+---
+title: "Page layout"
+description: "Page size, orientation, margins, scale, page ranges, outlines."
+---
+
+Physical layout knobs for your PDF: how big, which way up, how much margin,
+and which pages to include.
+
+## Page size
+
+Standard sizes via `pageSize`:
+
+| Value | Dimensions |
+|---|---|
+| `A4` (default) | 210 × 297 mm |
+| `A3` | 297 × 420 mm |
+| `Letter` | 8.5 × 11 in |
+| `Legal` | 8.5 × 14 in |
+| `Tabloid` | 11 × 17 in |
+
+Custom sizes via `width` + `height` (any CSS length unit). These
+override `pageSize`:
+
+```ts
+await rendio.pdfs.create({ html, width: "6in", height: "4in" });  // postcard
+await rendio.pdfs.create({ html, width: "80mm", height: "auto" }); // thermal receipt
+```
+
+Or declare the size in CSS and opt in with `preferCSSPageSize`:
+
+```ts
+await rendio.pdfs.create({
+  html: `<html><style>@page { size: 148mm 210mm; }</style><body>...</body></html>`,
+  preferCSSPageSize: true,
+});
+```
+
+## Orientation
+
+```ts
+await rendio.pdfs.create({ html, pageSize: "A4", landscape: true }); // 297×210
+```
+
+## Margins
+
+```ts
+await rendio.pdfs.create({
+  html,
+  margin: { top: "25mm", right: "20mm", bottom: "25mm", left: "20mm" },
+});
+```
+
+Any CSS unit — `mm`, `cm`, `in`, `px`, `pt`. Typical values:
+
+| Use case | Recommended margins |
+|---|---|
+| Screen-only PDF | 10–15 mm all sides |
+| Professional print | 20–25 mm top/bottom, 15–20 mm sides |
+| Binding / hole-punch | 25–30 mm on the binding edge |
+| With header / footer | 25 mm+ top / bottom |
+
+## Scale
+
+Shrink or enlarge the content (range 0.1 – 2):
+
+```ts
+await rendio.pdfs.create({ html, scale: 0.9 }); // fit 1200px table on landscape A4
+```
+
+<Warning>
+  Scale below ~0.7 makes text hard to read. Consider reflowing the HTML
+  instead of relying on scale.
+</Warning>
+
+## Backgrounds
+
+Chromium strips `background-color` and `background-image` by default ("save
+ink"). Enable them explicitly:
+
+```ts
+await rendio.pdfs.create({
+  html: `<div style="background: linear-gradient(...); color: white;">...</div>`,
+  printBackground: true,
+});
+```
+
+## Page ranges
+
+Export only a subset of the rendered pages:
+
+```ts
+await rendio.pdfs.create({ html, pageRanges: "1-3,5,8-10" });
+```
+
+| Syntax | Pages |
+|---|---|
+| `"1"` | 1 only |
+| `"1-3"` | 1, 2, 3 |
+| `"2-"` | 2 to end |
+| `"-3"` | 1 to 3 |
+| `"1,3,5"` | 1, 3, 5 |
+| `"1-3,5,8-"` | 1-3, 5, and 8 onwards |
+
+## PDF outline (bookmarks)
+
+Generate a sidebar outline from your HTML headings:
+
+```ts
+await rendio.pdfs.create({
+  html: `
+    <h1>Annual Report 2026</h1>
+    <h2>Executive Summary</h2>
+    <h2>Financial Results</h2>
+    <h3>Q1</h3>
+    <h3>Q2</h3>
+  `,
+  outline: true,
+});
+```
+
+Appears as clickable navigation in PDF readers.
+
+## Full example
+
+```ts
+await rendio.pdfs.create({
+  html: `
+    <div class="cover">
+      <h1>Q1 2026 Report</h1>
+      <p>Quarterly business performance analysis</p>
+    </div>
+    <h2>Executive Summary</h2>
+    <p>Revenue grew 42% quarter-over-quarter.</p>
+    <h2 class="page-break">Financial Highlights</h2>
+    <p>…</p>
+  `,
+  css: `
+    @page { margin: 20mm 24mm; }
+    body { font-family: 'Inter', sans-serif; font-size: 12px; }
+    .cover { background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 60px 40px; margin: -20mm -24mm 40px; text-align: center; }
+    .cover h1 { font-size: 36px; }
+    .page-break { page-break-before: always; }
+  `,
+  pageSize: "A4",
+  printBackground: true,
+  outline: true,
+  displayHeaderFooter: true,
+  footerTemplate: `
+    <div style="font-size: 9px; width: 100%; text-align: center; color: #999;">
+      Page <span class="pageNumber"></span> of <span class="totalPages"></span>
+    </div>
+  `,
+});
+```
+
+## Related
+
+- [Page breaks](/guides/page-breaks) — fine-grained break control.
+- [Headers & footers](/guides/headers-footers) — repeating elements.
+- [Styling & pages](/templates/styling-for-print) — `@page`, print-mode CSS.

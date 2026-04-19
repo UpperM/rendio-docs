@@ -87,10 +87,14 @@ latency but prevents blank images or unstyled text in your output.
 
 ## Preview mode
 
-`preview: true` adds a development watermark, is rate-limited to
-50 renders/day per user on Free (unlimited on paid plans), and must use
-`response: "buffer"`. The VSCode extension uses it under the hood for live
-preview.
+`preview: true` adds a development watermark, does not consume the monthly
+quota, and is rate-limited to 50 renders/day per user on Free (unlimited
+on paid plans). Must use `response: "buffer"`. **An API key is still
+required** — there is no keyless API access.
+
+The VSCode extension uses `preview: true` for live preview-as-you-type when
+an API key is configured. Without one, the extension falls back to a local
+HTML-only webview and does not call the API.
 
 ## Isolation and security
 

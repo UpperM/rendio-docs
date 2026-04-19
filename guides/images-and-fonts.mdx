@@ -1,0 +1,156 @@
+---
+title: "Images & fonts"
+description: "Base64 data URIs, external URLs, SVG, Google Fonts."
+---
+
+Rendio renders images the same way Chromium does — `<img src>`,
+`background-image`, SVG, `@font-face`. The only catch is whether you're
+embedding or fetching.
+
+## Base64 (works on all plans)
+
+Embed the image directly in your HTML. Always works, no network dependency,
+predictable latency.
+
+```ts
+import { readFileSync } from "node:fs";
+
+const logo = readFileSync("./logo.png").toString("base64");
+
+const pdf = await rendio.pdfs.create({
+  html: `
+    <img src="data:image/png;base64,${logo}" style="height: 40px;">
+    <h1>Invoice</h1>
+  `,
+});
+```
+
+Via Handlebars data, so the template doesn't contain the blob:
+
+```ts
+const pdf = await rendio.pdfs.create({
+  html: `<img src="{{logo}}" style="height: 40px;">`,
+  data: {
+    logo: `data:image/png;base64,${logo}`,
+  },
+});
+```
+
+<Warning>
+  A 1&nbsp;MB image becomes ~1.33&nbsp;MB as base64 in your HTML. The
+  `html` limit is 1&nbsp;MB, so keep base64 images compressed (&lt;&nbsp;100&nbsp;KB
+  each is a good target).
+</Warning>
+
+## External URLs (Starter and above)
+
+Reference images by URL — Chromium fetches them at render time.
+
+```ts
+await rendio.pdfs.create({
+  html: `<img src="https://your-cdn.com/logo.png">`,
+  waitUntil: "load", // wait for the image to finish loading
+});
+```
+
+**On the Free plan**, external resources (images, fonts, stylesheets) are
+rejected with `plan_limit` / `feature: "external_resources"`. Upgrade to
+Starter or inline as base64.
+
+<Tip>
+  Set `waitUntil: "load"` (or `"networkidle"`) when your HTML references
+  remote assets. The default `"domcontentloaded"` fires before images
+  finish loading — you'll get PDFs with broken image placeholders.
+</Tip>
+
+## Image formats
+
+| Format | Use for |
+|---|---|
+| PNG | Logos, icons, graphics with transparency |
+| JPEG | Photos |
+| WebP | Modern alternative — ~30-50% smaller than PNG/JPEG |
+| SVG | Vector graphics — scales perfectly, often smaller |
+| GIF | Supported, but PNG/WebP are usually better |
+
+## SVG
+
+Inline SVG is the cleanest path for icons and logos:
+
+```html
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+  <circle cx="12" cy="12" r="10" stroke="#1a1a1a" stroke-width="2"/>
+  <path d="M8 12l2 2 4-4" stroke="#1a1a1a" stroke-width="2"/>
+</svg>
+```
+
+For SVG as a data URI, URL-encode the string (the `#` character breaks
+plain `data:image/svg+xml,<svg>...</svg>`):
+
+```ts
+const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">
+  <circle cx="50" cy="50" r="40" fill="#667eea"/>
+</svg>`;
+
+const dataUri = `data:image/svg+xml,${encodeURIComponent(svg)}`;
+```
+
+## Google Fonts
+
+Same rules as images — base64 works on Free, remote `@import` requires
+Starter+.
+
+```ts
+await rendio.pdfs.create({
+  html: "<h1>Hello</h1>",
+  css: `
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+  `,
+});
+```
+
+For deterministic renders in production, serve the font from your own CDN
+or embed it via `@font-face` + base64:
+
+```css
+@font-face {
+  font-family: 'Inter';
+  src: url(data:font/woff2;base64,d09GMgABAAAAAQ...) format('woff2');
+  font-weight: 400;
+}
+```
+
+## Converting to base64
+
+<Tabs>
+  <Tab title="Node">
+    ```ts
+    import { readFileSync } from "node:fs";
+    const base64 = readFileSync("./logo.png").toString("base64");
+    const dataUri = `data:image/png;base64,${base64}`;
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import base64
+    with open("logo.png", "rb") as f:
+        b64 = base64.b64encode(f.read()).decode()
+    data_uri = f"data:image/png;base64,{b64}"
+    ```
+  </Tab>
+  <Tab title="Shell">
+    ```bash
+    echo "data:image/png;base64,$(base64 -w0 logo.png)"
+    ```
+  </Tab>
+</Tabs>
+
+## Troubleshooting
+
+| Symptom | Likely cause |
+|---|---|
+| Broken image placeholder | External URL + default `waitUntil`; use `load` |
+| `plan_limit` error | External URL on Free plan; switch to base64 or upgrade |
+| Slow render | Large base64 blob (>100 KB) — compress first |
+| `url_unreachable` | Asset host down or DNS failure — retry or self-host |

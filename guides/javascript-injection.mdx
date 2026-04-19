@@ -1,0 +1,166 @@
+---
+title: "JavaScript injection"
+description: "Run custom JavaScript in the page before rendering — charts, DOM manipulation, dynamic content."
+---
+
+The `javascript` parameter injects a script into the page after it loads
+and before Rendio captures the PDF or screenshot. Use it for client-side
+charting libraries, DOM manipulation, and cases where Handlebars isn't
+expressive enough.
+
+<Warning>
+  Requires **Starter plan or above**. On Free, the request is rejected with
+  `plan_limit` / `feature: "custom_js_execution"`.
+</Warning>
+
+## Quick start
+
+```ts
+await rendio.pdfs.create({
+  html: `<div id="greeting"></div>`,
+  javascript: `
+    document.getElementById('greeting').innerHTML = '<h1>Hello from JS!</h1>';
+  `,
+});
+```
+
+## How it works
+
+1. HTML is loaded in Chromium.
+2. Rendio waits for the `waitUntil` condition (default `domcontentloaded`).
+3. Your `javascript` is executed in the page context.
+4. Rendio waits for the script to complete (5-second cap).
+5. PDF / screenshot is captured.
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Script size | 100 KB |
+| Execution time | 5 seconds |
+| Plan | Starter or above |
+
+## Charts — Chart.js
+
+```ts
+await rendio.pdfs.create({
+  html: `
+    <canvas id="chart" width="800" height="400"></canvas>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  `,
+  javascript: `
+    new Chart(document.getElementById('chart').getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: ['Q1', 'Q2', 'Q3', 'Q4'],
+        datasets: [{ label: 'Revenue', data: [12000, 19000, 15000, 25000], backgroundColor: '#3b82f6' }]
+      },
+      options: { responsive: false, animation: false }
+    });
+  `,
+  waitUntil: "networkidle",
+  printBackground: true,
+});
+```
+
+<Tip>
+  Always disable animations (`animation: false`) in charting libraries.
+  Animations don't complete before Rendio captures the output.
+</Tip>
+
+## Charts — D3
+
+```ts
+await rendio.pdfs.create({
+  html: `
+    <div id="viz"></div>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+  `,
+  javascript: `
+    const data = [30, 86, 168, 281, 303, 365];
+    const svg = d3.select('#viz').append('svg').attr('width', 400).attr('height', 300);
+    svg.selectAll('rect').data(data).enter()
+      .append('rect')
+      .attr('x', (d, i) => i * 60)
+      .attr('y', d => 300 - d)
+      .attr('width', 50)
+      .attr('height', d => d)
+      .attr('fill', '#10b981');
+  `,
+  waitUntil: "networkidle",
+});
+```
+
+## DOM manipulation
+
+```ts
+await rendio.pdfs.create({
+  html: `
+    <table id="data">
+      <thead><tr><th>Name</th><th>Value</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  `,
+  javascript: `
+    const rows = [
+      { name: 'Alpha', value: 100 },
+      { name: 'Beta', value: 200 },
+    ];
+    const tbody = document.querySelector('#data tbody');
+    for (const row of rows) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + row.name + '</td><td>' + row.value + '</td>';
+      tbody.appendChild(tr);
+    }
+  `,
+});
+```
+
+## `waitUntil` pairings
+
+| `waitUntil` | When to use |
+|---|---|
+| `commit` | Not recommended — DOM may not be ready |
+| `domcontentloaded` | DOM manipulation only, no external scripts |
+| `load` | External scripts loaded via `<script src>` |
+| `networkidle` | Async work (charts fetching data, lazy-loaded libs) |
+
+For CDN-loaded charting libraries, use `networkidle` so the library is
+ready before your `javascript` tries to use it.
+
+## Security
+
+Your script runs inside Chromium's page context with full access to the
+DOM. It's sandboxed (no file-system or cross-origin privileges), but:
+
+- **Never interpolate untrusted input into the `javascript` string** —
+  it's an injection vector. Use Handlebars `data` instead (auto-escaped).
+- Only load third-party scripts from trusted CDNs — they can read and
+  modify anything in the page.
+
+```ts
+// WRONG — user input injected into JS string (XSS)
+const name = req.body.name;
+await rendio.pdfs.create({
+  html: `<div id="name"></div>`,
+  javascript: `document.getElementById('name').innerHTML = '${name}';`,
+});
+
+// RIGHT — Handlebars escapes automatically
+await rendio.pdfs.create({
+  html: `<div>{{name}}</div>`,
+  data: { name: req.body.name },
+});
+```
+
+## JavaScript vs Handlebars — when to use which
+
+| Need | Use |
+|---|---|
+| Dynamic text, loops, conditionals | Handlebars |
+| Client-side charting (Chart.js, D3) | `javascript` |
+| DOM restructuring | `javascript` |
+| Server-computed values | Handlebars (pre-computed in your app) |
+
+Handlebars runs once, server-side, at a fraction of the cost. Use
+`javascript` only when you need a browser API or a client-side library.

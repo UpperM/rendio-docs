@@ -1,0 +1,148 @@
+---
+title: "Performance"
+description: "Where render time goes and how to shave it."
+---
+
+Most Rendio renders complete in under 300&nbsp;ms when the Chromium pool is
+warm. The long tail is driven almost entirely by how your HTML is written
+— the knobs below are where you'll see the biggest gains.
+
+## Quick wins
+
+| Change | Typical saving |
+|---|---|
+| Keep `waitUntil: "domcontentloaded"` (default) or drop to `"commit"` for inline HTML | 50–500 ms |
+| Inline images as optimized base64 instead of external URLs | 100–500 ms |
+| System fonts instead of Google Fonts | 100–300 ms |
+| Pre-compile Handlebars for very large templates | 50–200 ms |
+| Drop unused Google-Font weights | 50–200 ms |
+
+## `waitUntil` — the biggest lever
+
+| Value | Waits for | Typical latency |
+|---|---|---|
+| `commit` | Document starts loading | ~50 ms |
+| `domcontentloaded` (default) | DOM parsed | ~100 ms |
+| `load` | All resources loaded | 200–500 ms |
+| `networkidle` | No network for 500 ms | 500–2000 ms |
+
+Pick the **loosest** value that still gives you a complete render:
+
+```ts
+// Pure inline HTML, no external refs → commit
+await rendio.pdfs.create({ html: "<h1>Hi</h1>", waitUntil: "commit" });
+
+// Most templates (inline CSS, base64 images) → default is fine
+await rendio.pdfs.create({ html });
+
+// External images, fonts, stylesheets → load
+await rendio.pdfs.create({ html: `<img src="https://…">`, waitUntil: "load" });
+
+// Async JS (Chart.js fetching data) → networkidle
+await rendio.pdfs.create({ html, javascript, waitUntil: "networkidle" });
+```
+
+## Images
+
+Usually the biggest bottleneck. Each unoptimised image can add seconds.
+
+1. Resize to display size — a 2000×2000 logo shown at 100×100 wastes everything.
+2. Convert to WebP — 30–50% smaller than JPEG/PNG, same visual quality.
+3. Compress aggressively — 60–80% quality is usually fine.
+4. Strip EXIF.
+
+| Delivery | Speed | Availability |
+|---|---|---|
+| Base64 inline | Fastest (zero network) | All plans |
+| External URL + `waitUntil: "load"` | Slower, depends on origin | Starter+ |
+
+A 1 MB image is ~1.33 MB as base64. Stay under the 1 MB `html` cap.
+
+## Fonts
+
+External fonts add 100–500 ms per weight. In order of fastest to slowest:
+
+1. **System font stack** — instant.
+   ```css
+   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; }
+   ```
+2. **Google Fonts with minimum weights** — 100–300 ms.
+   ```css
+   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+   ```
+3. **Embedded WOFF2 base64** — same speed as system fonts after first request.
+
+## HTML complexity
+
+Deeply nested DOM and complex CSS selectors slow both parse and layout.
+Prefer flat structure and single-class selectors:
+
+```html
+<!-- Slower -->
+<div class="wrapper"><div class="container"><div class="row"><div class="col"><div class="card"><p>Hi</p></div></div></div></div></div>
+
+<!-- Faster -->
+<div class="card"><p>Hi</p></div>
+```
+
+## Payload size
+
+| Payload | Transfer (rough) |
+|---|---|
+| 10 KB | ~5 ms |
+| 100 KB | ~20 ms |
+| 500 KB | ~100 ms |
+| 1 MB (cap) | ~200 ms |
+
+Minify HTML, strip unused CSS, avoid inline large assets.
+
+## `delay` vs `waitForSelector`
+
+Prefer `waitForSelector` over `delay` — it's tight, `delay` always waits
+the full duration even when content is ready.
+
+```ts
+// Best: wait until a specific element signals readiness
+await rendio.pdfs.create({
+  html: `<div id="chart"></div><script>/* sets class="ready" */</script>`,
+  waitForSelector: ".ready",
+});
+
+// Last resort
+await rendio.pdfs.create({ html, delay: 500 });
+```
+
+## Measuring
+
+Every response carries timing metadata:
+
+```ts
+const pdf = await rendio.pdfs.create({ html });
+console.log(`server render: ${pdf.meta.renderTimeMs} ms`);
+console.log(`size: ${(pdf.size / 1024).toFixed(1)} KB`);
+```
+
+In buffer mode, inspect `X-Render-Time-Ms` and `Server-Timing` response
+headers for per-phase breakdown (`pool`, `render`, `upload`).
+
+## Typical render times
+
+| Template | Expected |
+|---|---|
+| Simple HTML, system fonts, no images | 50–150 ms |
+| Invoice with base64 logo | 100–250 ms |
+| Report with Google Fonts | 200–400 ms |
+| Remote images | 300–800 ms |
+| Async JS + `networkidle` | 500–2000 ms |
+
+If your renders consistently exceed 1 second, check the checklist above —
+the default stack rarely needs more than 500 ms.
+
+## Checklist
+
+- `waitUntil` is the loosest value that still renders completely.
+- Images are compressed, WebP when possible, inline as base64.
+- Only required font weights are loaded (or system fonts).
+- HTML payload under ~500 KB.
+- No `delay` values longer than necessary (`waitForSelector` wins).
+- Handlebars `data` used for dynamic values, not string interpolation in `javascript`.

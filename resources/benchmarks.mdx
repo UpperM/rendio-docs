@@ -1,0 +1,59 @@
+---
+title: "Benchmarks"
+description: "Real-world render latency on 15 templates, measured with k6."
+---
+
+Rendio is built for speed. The numbers below are measured against our
+production worker using [k6](https://k6.io/), 20 sequential iterations per
+template, single virtual user.
+
+- **Render time** = server-side rendering only (Chromium `page.pdf()`),
+  from the `X-Render-Time-Ms` response header.
+- **HTTP latency** = full round-trip, including network, request parsing,
+  and response serialization.
+
+## Results
+
+| Template | Render P50 | Render P95 | HTTP P50 | HTTP P95 | PDF Size |
+|---|---|---|---|---|---|
+| Minimal HTML | **13 ms** | 22 ms | 41 ms | 56 ms | 14 KB |
+| Simple page | **15 ms** | 20 ms | 44 ms | 63 ms | 20 KB |
+| Invoice (static) | **20 ms** | 28 ms | 49 ms | 59 ms | 40 KB |
+| Invoice (Handlebars) | **19 ms** | 26 ms | 47 ms | 54 ms | 38 KB |
+| Report (Handlebars) | **17 ms** | 26 ms | 45 ms | 54 ms | 30 KB |
+| Image (base64 inline) | **27 ms** | 35 ms | 55 ms | 63 ms | 53 KB |
+| Complex CSS layout | **48 ms** | 65 ms | 76 ms | 91 ms | 90 KB |
+| Multi-page report | **43 ms** | 61 ms | 71 ms | 88 ms | 100 KB |
+| Edge case (encoding) | **40 ms** | 51 ms | 68 ms | 79 ms | 121 KB |
+| Dashboard report | **91 ms** | 121 ms | 122 ms | 152 ms | 139 KB |
+| External images | **585 ms** | 617 ms | 639 ms | 669 ms | 200 KB |
+| Large table (static) | **223 ms** | 258 ms | 267 ms | 304 ms | 319 KB |
+| Large table (Handlebars) | **231 ms** | 278 ms | 269 ms | 319 ms | 322 KB |
+| Annual report (full) | **1198 ms** | 1272 ms | 1322 ms | 1403 ms | 1.4 MB |
+
+## Takeaways
+
+- **Simple templates render under 30 ms.** Invoices, reports, and standard
+  business documents consistently hit sub-50 ms.
+- **Complex layouts stay under 100 ms.** Multi-page documents, CSS-Grid
+  dashboards, and styled reports all render well under 150 ms P95.
+- **Large documents scale linearly.** A 300 KB table renders in ~230 ms;
+  a 1.4 MB multi-section annual report in ~1.2 s.
+- **Network-bound templates are the exception.** Templates fetching
+  external images add latency from the image download, not from rendering
+  — 27 ms with a base64 image vs 585 ms with the same image by URL. Use
+  base64 inline images in production. See
+  [Performance](/guides/performance).
+
+## Methodology
+
+- **Tool**: k6 load-testing framework.
+- **Iterations**: 20 per template, single virtual user, sequential (no
+  concurrency).
+- **Target**: production worker (direct path, gateway/auth overhead
+  excluded so numbers reflect render cost, not billing/quota bookkeeping).
+- **Templates**: 15 real-world templates covering invoices, reports,
+  dashboards, tables, edge cases, and Handlebars dynamic data.
+
+No synthetic optimization, no cherry-picked runs. Numbers shift slightly
+between benchmark runs; these are representative, not contractual.

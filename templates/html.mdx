@@ -1,0 +1,121 @@
+---
+title: "HTML & Handlebars"
+description: "Plain HTML, Handlebars templating, and when to use each."
+---
+
+Pass any valid HTML to `html`. Rendio renders it with Chromium — what you see
+in a browser is what you get in the PDF.
+
+## Plain HTML
+
+```ts
+import Rendio from "rendio";
+
+const rendio = new Rendio();
+
+const pdf = await rendio.pdfs.create({
+  html: `
+    <html>
+      <head>
+        <style>
+          body { font-family: 'Helvetica Neue', sans-serif; margin: 0; padding: 40px; color: #111; }
+          h1 { font-size: 28px; border-bottom: 2px solid #000; padding-bottom: 8px; }
+        </style>
+      </head>
+      <body>
+        <h1>Report — April 2026</h1>
+        <p>Total revenue: <strong>$12,400</strong></p>
+      </body>
+    </html>
+  `,
+  pageSize: "A4",
+});
+```
+
+## Handlebars templates
+
+Use `{{variable}}` to interpolate values from `data`.
+
+```ts
+const template = `
+  <html>
+    <body>
+      <div class="header">
+        <div class="invoice-number">Invoice #{{invoice.number}}</div>
+        <div>Issued: {{invoice.date}}</div>
+      </div>
+      <div>Bill to: <strong>{{client.name}}</strong></div>
+
+      <table>
+        <thead>
+          <tr><th>Description</th><th>Qty</th><th>Total</th></tr>
+        </thead>
+        <tbody>
+          {{#each items}}
+          <tr>
+            <td>{{description}}</td>
+            <td>{{qty}}</td>
+            <td>{{total}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+
+      {{#if invoice.taxRate}}
+      <div>Tax ({{invoice.taxRate}}%): {{invoice.tax}}</div>
+      {{/if}}
+      <div class="total">Total: {{invoice.total}}</div>
+    </body>
+  </html>
+`;
+
+const pdf = await rendio.pdfs.create({
+  html: template,
+  data: {
+    invoice: { number: "2026-042", date: "April 13, 2026", taxRate: 20, tax: "$720.00", total: "$4,320.00" },
+    client: { name: "Globex Corporation" },
+    items: [
+      { description: "UI design", qty: 20, total: "$1,600.00" },
+      { description: "Frontend dev", qty: 25, total: "$2,000.00" },
+    ],
+  },
+  pageSize: "A4",
+});
+```
+
+## Handlebars syntax reference
+
+| Syntax | Purpose |
+|---|---|
+| `{{name}}` | Output a variable (HTML-escaped) |
+| `{{{name}}}` | Output raw HTML (unescaped — use with caution) |
+| `{{#each items}}...{{/each}}` | Loop over an array |
+| `{{#if condition}}...{{/if}}` | Conditional block |
+| `{{#if condition}}...{{else}}...{{/if}}` | Conditional with fallback |
+| `{{@index}}` | Current loop index (inside `each`) |
+| `{{@first}}` / `{{@last}}` | Booleans — first / last iteration |
+
+## Inline CSS vs the `css` parameter
+
+You can put styles in a `<style>` tag inside `html`, or pass them separately
+via `css`. Both work identically — use whichever keeps your template
+cleaner. `css` is convenient when you share styles across templates.
+
+```ts
+const pdf = await rendio.pdfs.create({
+  html: "<h1>{{title}}</h1><p>{{body}}</p>",
+  css: `
+    body { font-family: Georgia, serif; padding: 48px; }
+    h1 { color: #1a1a1a; font-size: 32px; }
+  `,
+  data: { title: "Annual Report", body: "Revenue grew 40% YoY." },
+});
+```
+
+For Google Fonts, page margins, and print-mode CSS, see
+[Styling & pages](/templates/styling-for-print).
+
+## See also
+
+- [TSX / React](/templates/tsx-react) — render JSX components as templates.
+- [Styling & pages](/templates/styling-for-print) — print-mode CSS, `@page`, Google Fonts.

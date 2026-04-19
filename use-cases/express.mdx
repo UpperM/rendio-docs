@@ -1,0 +1,126 @@
+---
+title: "Express"
+description: "PDF generation endpoint in an Express API."
+---
+
+Add a PDF endpoint to an Express server in under 30 lines of code.
+
+## Setup
+
+```bash
+npm install rendio express
+npm install -D @types/express
+```
+
+```bash
+export RENDIO_API_KEY=rk_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+## Router
+
+```ts
+// routes/pdf.ts
+import { Router } from "express";
+import Rendio, {
+  RendioError,
+  ValidationError,
+  QuotaExceededError,
+  PlanLimitError,
+} from "rendio";
+
+const router = Router();
+const rendio = new Rendio(); // module-scope singleton
+
+router.post("/generate-pdf", async (req, res) => {
+  try {
+    const { html, data, pageSize } = req.body as {
+      html: string;
+      data?: Record<string, unknown>;
+      pageSize?: "A4" | "Letter" | "A3" | "Legal" | "Tabloid";
+    };
+
+    const pdf = await rendio.pdfs.create({ html, data, pageSize });
+    res.json(pdf);
+  } catch (err) {
+    if (err instanceof ValidationError) {
+      res.status(400).json({ error: err.message, code: err.code });
+      return;
+    }
+    if (err instanceof QuotaExceededError) {
+      res.status(503).json({ error: "Rendio quota exhausted", code: err.code });
+      return;
+    }
+    if (err instanceof PlanLimitError) {
+      res.status(402).json({
+        error: `Feature "${err.feature}" requires a higher plan`,
+        code: err.code,
+      });
+      return;
+    }
+    if (err instanceof RendioError) {
+      console.error("[rendio]", {
+        code: err.code,
+        requestId: err.requestId,
+        traceId: err.traceId,
+      });
+      res.status(err.statusCode ?? 500).json({ error: err.message, code: err.code });
+      return;
+    }
+    res.status(500).json({ error: "Unexpected error" });
+  }
+});
+
+export default router;
+```
+
+```ts
+// server.ts
+import express from "express";
+import pdfRouter from "./routes/pdf";
+
+const app = express();
+app.use(express.json({ limit: "2mb" })); // HTML up to 1 MB → some JSON overhead
+app.use("/api", pdfRouter);
+
+app.listen(3000, () => console.log("http://localhost:3000"));
+```
+
+## Test
+
+```bash
+curl -X POST http://localhost:3000/api/generate-pdf \
+  -H "Content-Type: application/json" \
+  -d '{"html":"<h1>Invoice #2026-042</h1>","pageSize":"A4"}'
+```
+
+```json
+{
+  "id": "rd_abc1234567890def",
+  "url": "https://cdn.rendio.dev/f/rd_abc1234567890def.pdf",
+  "pages": 1,
+  "size": 38400,
+  "expiresAt": "2026-04-20T12:00:00.000Z"
+}
+```
+
+## Streaming buffer mode
+
+When you want to stream raw PDF bytes straight to the client:
+
+```ts
+router.post("/invoice.pdf", async (req, res) => {
+  const result = await rendio.pdfs.create({
+    html: req.body.html,
+    response: "buffer",
+  });
+
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", 'attachment; filename="invoice.pdf"');
+  res.send(Buffer.from(result.buffer));
+});
+```
+
+<Tip>
+  Instantiate `Rendio` at module scope, not per request. Keeps keep-alive
+  connections warm and avoids per-request setup cost.
+</Tip>

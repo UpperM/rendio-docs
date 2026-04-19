@@ -1,0 +1,116 @@
+---
+title: "Headers & footers"
+description: "Page numbers, dates, and branded repeating elements."
+---
+
+Enable repeating page headers and footers with `displayHeaderFooter: true`
+plus `headerTemplate` / `footerTemplate`. The templates are rendered by
+Chromium's print system — separate from your document's CSS.
+
+## Quick start — page numbers
+
+```ts
+await rendio.pdfs.create({
+  html: "<h1>Annual Report</h1><p>…</p>",
+  displayHeaderFooter: true,
+  footerTemplate: `
+    <div style="font-size: 10px; width: 100%; text-align: center; color: #666;">
+      Page <span class="pageNumber"></span> of <span class="totalPages"></span>
+    </div>
+  `,
+  margin: { top: "20mm", bottom: "20mm" },
+});
+```
+
+## Template variables
+
+Insert a `<span class="...">` with one of these class names — Chromium
+substitutes the value at print time:
+
+| Class | Value |
+|---|---|
+| `pageNumber` | Current page number |
+| `totalPages` | Total page count |
+| `date` | Locale-formatted date |
+| `title` | Document `<title>` |
+| `url` | Document URL |
+
+```html
+<span class="pageNumber"></span> <!-- 1, 2, 3… -->
+<span class="totalPages"></span> <!-- 5 -->
+<span class="date"></span>       <!-- 4/15/2026 -->
+```
+
+## Styling rules
+
+Templates support **inline CSS only** — external stylesheets and the
+document's own CSS are not applied. System fonts only (Arial, Times, etc.
+— Google Fonts / `@import` don't load inside header/footer templates).
+
+```ts
+await rendio.pdfs.create({
+  html: "<h1>Invoice #2026-042</h1><p>…</p>",
+  displayHeaderFooter: true,
+  headerTemplate: `
+    <div style="
+      font-size: 9px;
+      font-family: Arial, sans-serif;
+      width: 100%;
+      padding: 0 24mm;
+      display: flex;
+      justify-content: space-between;
+      color: #999;
+    ">
+      <span>Acme Studio</span>
+      <span>Confidential</span>
+    </div>
+  `,
+  footerTemplate: `
+    <div style="
+      font-size: 9px;
+      font-family: Arial, sans-serif;
+      width: 100%;
+      padding: 0 24mm;
+      display: flex;
+      justify-content: space-between;
+      color: #999;
+    ">
+      <span>Generated <span class="date"></span></span>
+      <span>Page <span class="pageNumber"></span> / <span class="totalPages"></span></span>
+    </div>
+  `,
+  margin: { top: "25mm", bottom: "20mm", left: "24mm", right: "24mm" },
+});
+```
+
+<Tip>
+  Pad the template horizontally to line it up with the document margins —
+  e.g. if your document has `margin.left: 24mm`, use `padding: 0 24mm` in
+  the template.
+</Tip>
+
+## Common mistakes
+
+1. **No margins** — templates render in the margin area. `margin: { top: 0, bottom: 0 }` clips the template.
+2. **Forgetting `displayHeaderFooter: true`** — without it, `headerTemplate` / `footerTemplate` are silently ignored.
+3. **Custom fonts** — Google Fonts / `@font-face` don't load in templates. Stick to system fonts.
+4. **External CSS** — the document's stylesheet does not apply. Use inline `style` attributes only.
+
+## Hiding on the first page
+
+Add a CSS rule keyed to the page number via a class on the template — a
+common pattern for cover pages:
+
+```html
+<div style="font-size: 9px; width: 100%; text-align: center;">
+  <span class="pageNumber"></span>
+</div>
+<style>
+  /* On page 1, hide everything */
+  @page :first { margin-bottom: 0; }
+</style>
+```
+
+For more control, conditionally render a different `footerTemplate` on
+your side and regenerate the PDF — Chromium's print system doesn't expose
+the current page number to CSS selectors.

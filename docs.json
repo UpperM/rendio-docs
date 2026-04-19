@@ -34,13 +34,57 @@
             ]
           },
           {
+            "group": "Templates",
+            "pages": [
+              "templates/html",
+              "templates/tsx-react",
+              "templates/styling-for-print"
+            ]
+          },
+          {
             "group": "SDKs",
             "pages": [
               "sdks/overview",
+              "sdks/rendering",
               "sdks/error-handling",
               "sdks/retries-and-timeouts",
               "sdks/idempotency",
               "sdks/opentelemetry"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/dynamic-data",
+              "guides/images-and-fonts",
+              "guides/page-layout",
+              "guides/page-breaks",
+              "guides/headers-footers",
+              "guides/screenshots",
+              "guides/javascript-injection",
+              "guides/performance"
+            ]
+          },
+          {
+            "group": "Use Cases",
+            "pages": [
+              "use-cases/build-an-invoice",
+              "use-cases/nextjs",
+              "use-cases/express"
+            ]
+          },
+          {
+            "group": "Tools",
+            "pages": [
+              "tools/vscode"
+            ]
+          },
+          {
+            "group": "Resources",
+            "pages": [
+              "resources/benchmarks",
+              "resources/chromium-versions",
+              "resources/changelog"
             ]
           }
         ]

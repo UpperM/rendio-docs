@@ -1,0 +1,54 @@
+---
+title: "Chromium versions"
+description: "How Rendio pins Chromium and how to read the version from a render."
+---
+
+Rendio renders with Playwright's bundled Chromium. Different Chromium
+versions can produce subtly different PDFs — font metrics, page-break
+positions, and edge cases of CSS layout all drift over time.
+
+To prevent silent drift on dependency updates, Rendio **pins** the exact
+Playwright version (no caret, no tilde) in the worker's lockfile.
+
+## Reading the Chromium version
+
+### From a render response
+
+Every render response carries the version:
+
+- **URL mode**: `response.meta.chromiumVersion`
+- **Buffer mode**: the `X-Chromium-Version` response header
+
+```ts
+const pdf = await rendio.pdfs.create({ html });
+console.log(pdf.meta.chromiumVersion); // e.g. "131.0.6778.33"
+console.log(pdf.meta.renderTimeMs);
+```
+
+```bash
+curl -X POST https://api.rendio.dev/v1/render \
+  -H "Authorization: Bearer $RENDIO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"html":"<h1>Hi</h1>","response":"buffer"}' \
+  -D - -o /dev/null
+# HTTP/2 200
+# x-chromium-version: 131.0.6778.33
+# x-render-time-ms: 245
+```
+
+### OpenTelemetry attribute
+
+When telemetry is enabled, the `rendio.chromium_version` attribute is set on
+the `rendio.pdfs.create` span on success.
+
+<Tip>
+  Store `meta.chromiumVersion` alongside your rendered PDFs — you'll thank
+  yourself the first time a template starts page-breaking differently and
+  you need to pinpoint which Chromium rev changed its mind.
+</Tip>
+
+## Rollouts
+
+Chromium version bumps ship as part of normal worker deployments. We post
+notable upgrades to the [changelog](/resources/changelog) — in particular
+when a bump materially affects layout or fonts.

@@ -1,0 +1,181 @@
+---
+title: "Screenshots"
+description: "Generate PNG or JPEG images instead of PDFs."
+---
+
+Rendio produces images as easily as PDFs — same `POST /v1/render` endpoint,
+same SDK method, just set `output: "png"` or `"jpeg"`.
+
+## Quick start
+
+```ts
+import { writeFileSync } from "node:fs";
+
+const result = await rendio.pdfs.create({
+  html: "<h1>Hello world</h1>",
+  output: "png",
+  response: "buffer",
+});
+
+writeFileSync("screenshot.png", Buffer.from(result.buffer));
+```
+
+## Formats
+
+| Format | Content-Type | Use for |
+|---|---|---|
+| `png` | `image/png` | Text, icons, graphics with transparency — lossless |
+| `jpeg` | `image/jpeg` | Photos — smaller file size, lossy, no transparency |
+
+## Dimensions
+
+Same controls as PDFs — `pageSize`, or `width` + `height`:
+
+```ts
+// Open Graph image
+await rendio.pdfs.create({
+  html: ogCardHtml,
+  output: "png",
+  width: "1200px",
+  height: "630px",
+  response: "buffer",
+});
+```
+
+Common dimensions:
+
+| Use case | Width × Height |
+|---|---|
+| Open Graph | 1200 × 630 |
+| Twitter card | 1200 × 600 |
+| Instagram square | 1080 × 1080 |
+| Thumbnail | 300 × 200 |
+
+## Backgrounds
+
+Like PDFs, backgrounds are stripped by default. Set `printBackground: true`
+to keep `background-color`, gradients, and background images:
+
+```ts
+await rendio.pdfs.create({
+  html: `
+    <div style="background: linear-gradient(135deg, #667eea, #764ba2); padding: 100px; color: white;">
+      <h1>Gradient</h1>
+    </div>
+  `,
+  output: "png",
+  printBackground: true,
+  response: "buffer",
+});
+```
+
+<Warning>
+  Without `printBackground: true`, backgrounds render as white (JPEG) or
+  transparent (PNG) and your image looks empty.
+</Warning>
+
+## Full-page capture
+
+Screenshots capture one "page" at the configured dimensions. For tall
+content either set `height` explicitly or use PDF output (which handles
+multi-page naturally):
+
+```ts
+await rendio.pdfs.create({
+  html: longContentHtml,
+  output: "png",
+  width: "800px",
+  height: "2400px",
+  response: "buffer",
+});
+```
+
+## Open-Graph generator pattern
+
+```ts
+async function renderOgImage(title: string, description: string): Promise<ArrayBuffer> {
+  const result = await rendio.pdfs.create({
+    html: `
+      <div style="
+        width: 1200px; height: 630px;
+        background: linear-gradient(135deg, #1a1a2e, #16213e);
+        display: flex; flex-direction: column; justify-content: center;
+        padding: 60px; font-family: system-ui, sans-serif; color: white;
+      ">
+        <h1 style="font-size: 64px; margin: 0 0 20px;">${escape(title)}</h1>
+        <p style="font-size: 28px; opacity: 0.8; margin: 0;">${escape(description)}</p>
+      </div>
+    `,
+    output: "png",
+    width: "1200px",
+    height: "630px",
+    printBackground: true,
+    response: "buffer",
+  });
+  return result.buffer;
+}
+
+function escape(s: string): string {
+  return s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
+}
+```
+
+## Base64-encoded response
+
+For environments that don't handle binary well (some serverless runtimes,
+JSON-only API gateways), set `encode: "base64"` — the API returns a JSON
+envelope with the image as a base64 string instead of raw bytes:
+
+```bash
+curl https://api.rendio.dev/v1/render \
+  -H "Authorization: Bearer $RENDIO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"html":"<h1>Hi</h1>","output":"png","encode":"base64","response":"buffer"}'
+```
+
+Response:
+
+```json
+{
+  "data": "iVBORw0KGgoAAAANSUhEUg...",
+  "contentType": "image/png",
+  "size": 14832
+}
+```
+
+<Note>
+  `encode: "base64"` is a raw HTTP feature. The typed SDK return values
+  (`PdfBufferResult.buffer`) expose raw bytes — use the HTTP API directly
+  when you need the JSON envelope.
+</Note>
+
+## Charts via user JavaScript
+
+Combine `javascript` + `waitForSelector` to capture dynamically-rendered
+content (requires Starter+):
+
+```ts
+await rendio.pdfs.create({
+  html: `
+    <canvas id="chart" width="800" height="400"></canvas>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  `,
+  javascript: `
+    const ctx = document.getElementById('chart').getContext('2d');
+    new Chart(ctx, {
+      type: 'bar',
+      data: { labels: ['Jan', 'Feb', 'Mar'], datasets: [{ data: [10, 20, 30] }] }
+    });
+  `,
+  output: "png",
+  waitUntil: "networkidle",
+  printBackground: true,
+  response: "buffer",
+});
+```
+
+## URL vs buffer mode
+
+Same as PDFs — `response: "url"` uploads to the CDN and returns a JSON
+response with the URL; `response: "buffer"` streams bytes directly. See
+[How Rendio works](/concepts/how-it-works#output-delivery).

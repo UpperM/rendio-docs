@@ -28,7 +28,7 @@ All Rendio errors follow the same envelope:
 | `not_found` | 404 | No | File ID does not exist or is not owned by your account |
 | `render_timeout` | 408 | No | Render exceeded 30 seconds server-side |
 | `idempotency_conflict` | 409 | No | Idempotency key reused with a different body, or a prior request is still in flight |
-| `html_too_large` | 413 | No | `html` or `css` exceeds 1 MB |
+| `html_too_large` | 413 | No | `html` exceeds 1 MB (CSS &gt; 1 MB returns `validation_error`) |
 | `rate_limit_exceeded` | 429 | Yes | Per-key or per-plan API rate limit hit — honor `Retry-After` |
 | `quota_exceeded` | 429 | No | Monthly render quota or overage spending cap reached |
 | `concurrent_limit_exceeded` | 429 | Yes | Too many renders in-flight for your plan |

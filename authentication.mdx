@@ -27,17 +27,20 @@ a valid API key in the `Authorization` header.
   code, public repositories, or logs.
 </Warning>
 
-## Key formats
+## Key format
 
-Rendio uses two key types to separate production and development:
+API keys start with the prefix `rk_live_` followed by a long random
+secret. Treat the whole string — prefix plus secret — as the credential.
 
-| Format | Environment | Description |
-|--------|-------------|-------------|
-| `rk_live_[32 chars]` | Production | Real API calls, billed to your account |
-| `rk_test_[32 chars]` | Test / Sandbox | Safe for development, no billing impact |
+```
+rk_live_<secret>
+```
 
-Both types have identical functionality. Use `rk_test_*` keys during
-development to avoid consuming your production quota.
+<Note>
+  Keys are opaque — don't parse or truncate them. The dashboard displays
+  the prefix plus the last four characters of the secret for
+  identification; the full value is shown exactly once at creation.
+</Note>
 
 ## Using your API key
 
@@ -116,7 +119,7 @@ If authentication fails, the API returns **HTTP 401** with:
 Common causes:
 
 - **Missing header** — no `Authorization` sent.
-- **Bad format** — key does not match `rk_live_*` or `rk_test_*`.
+- **Bad format** — key does not match `rk_live_<secret>`.
 - **Revoked key** — the key was deleted from the dashboard.
 - **Malformed prefix** — `Bearer` missing or typo.
 
@@ -155,20 +158,30 @@ try {
 4. **Monitor usage** — the dashboard shows per-key request counts; unusual spikes warrant attention.
 5. **Minimum distribution** — only issue keys to people and systems that actually need them. One key per workload.
 
-## Preview mode (no API key)
+## Preview renders (watermarked)
 
-For quick testing, you can render PDFs without an API key. Preview mode:
+`preview: true` on `POST /v1/render` produces a watermarked output without
+consuming your monthly quota. **It still requires a valid API key** — there
+is no keyless API access.
 
-- Adds a watermark to all output.
-- Is rate-limited to **10 requests per hour per IP**.
-- Supports `response: "buffer"` only (URL mode is disabled — there's no account to bill the storage against).
+Use it for development loops, CI smoke tests, or any case where you want to
+exercise the real rendering path without burning quota:
 
 ```bash
 curl https://api.rendio.dev/v1/render \
+  -H "Authorization: Bearer $RENDIO_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"html":"<h1>Preview</h1>","preview":true,"response":"buffer"}' \
   --output preview.pdf
 ```
 
-Useful for a zero-setup try-before-you-sign-up flow. The VSCode extension uses
-this under the hood for live preview.
+Constraints:
+
+- Must use `response: "buffer"` (URL mode is rejected in preview).
+- Rate-limited to **50 / day** per user on the Free plan; unlimited on
+  Starter and Pro.
+- Does not consume the monthly render quota.
+
+The VSCode extension uses `preview: true` under the hood for live
+preview-as-you-type. When no API key is configured, the extension falls
+back to a local HTML-only webview preview and does not call the API.

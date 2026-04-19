@@ -1,0 +1,124 @@
+---
+title: "Page breaks"
+description: "Force, prevent, and fine-tune page breaks in multi-page PDFs."
+---
+
+Control where Chromium breaks pages using CSS. Both the legacy
+`page-break-*` and the modern `break-*` properties work.
+
+## Quick patterns
+
+```css
+/* Start each chapter on a new page */
+.chapter { page-break-before: always; }
+
+/* Keep table rows together */
+tr { page-break-inside: avoid; }
+
+/* Never break after a heading (avoid orphan headings) */
+h2, h3 { page-break-after: avoid; }
+```
+
+## Properties
+
+| Legacy | Modern | Values |
+|---|---|---|
+| `page-break-before` | `break-before` | `auto`, `always`, `avoid` |
+| `page-break-after` | `break-after` | `auto`, `always`, `avoid` |
+| `page-break-inside` | `break-inside` | `auto`, `avoid` |
+
+Both styles work in Chromium. `page-break-*` is more widely supported in
+older tooling.
+
+## Keep content together
+
+```css
+.card { page-break-inside: avoid; }     /* keep the whole card on one page */
+figure { page-break-inside: avoid; }    /* keep figures with captions */
+.totals { page-break-inside: avoid; }   /* keep invoice totals together */
+```
+
+<Warning>
+  `page-break-inside: avoid` has no effect if the element is **taller than
+  a page**. Break the content into smaller units or accept the split.
+</Warning>
+
+## Repeating table headers
+
+When a table spans pages, repeat `<thead>` on each page with
+`display: table-header-group`:
+
+```css
+thead { display: table-header-group; }
+tfoot { display: table-footer-group; }
+tr    { page-break-inside: avoid; }
+```
+
+Only works on real `<thead>` / `<tfoot>` — not on `<div>`s styled as tables.
+
+## Orphans and widows
+
+Prevent single lines stranded at the top or bottom of pages:
+
+```css
+p {
+  orphans: 3; /* min lines at bottom of page before breaking */
+  widows: 3;  /* min lines at top of the next page */
+}
+```
+
+## Debugging
+
+When breaks behave unexpectedly:
+
+1. Check element height — `avoid` can't prevent what doesn't fit.
+2. A parent with `avoid` does **not** propagate to children.
+3. Test in Chrome's print-preview first — same engine, faster iteration.
+4. Temporarily outline everything to see element boundaries:
+
+```css
+* { outline: 1px solid rgba(255, 0, 0, 0.2); }
+```
+
+## Full example
+
+```ts
+await rendio.pdfs.create({
+  html: `
+    <div class="cover">
+      <h1>Q1 2026 Report</h1>
+    </div>
+    <div class="chapter">
+      <h2>Executive Summary</h2>
+      <p>…</p>
+    </div>
+    <div class="chapter">
+      <h2>Financial Summary</h2>
+      <table>
+        <thead>
+          <tr><th>Metric</th><th>Q4</th><th>Q1</th><th>Δ</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Revenue</td><td>$1.2M</td><td>$1.7M</td><td>+42%</td></tr>
+          <tr><td>Active Users</td><td>12,400</td><td>18,200</td><td>+47%</td></tr>
+        </tbody>
+      </table>
+    </div>
+  `,
+  css: `
+    @page { margin: 20mm; }
+    body { font-family: 'Helvetica Neue', sans-serif; font-size: 13px; }
+    .cover { height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .chapter { page-break-before: always; }
+    h2 { page-break-after: avoid; font-size: 20px; }
+    table { width: 100%; border-collapse: collapse; }
+    thead { display: table-header-group; }
+    tr { page-break-inside: avoid; }
+    th, td { padding: 10px; }
+    th { background: #f5f5f5; text-align: left; }
+  `,
+  pageSize: "A4",
+  printBackground: true,
+  outline: true,
+});
+```

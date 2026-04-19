@@ -1,0 +1,140 @@
+---
+title: "Dynamic data with Handlebars"
+description: "Variables, loops, conditionals, and helpers for template-driven PDFs."
+---
+
+Rendio uses [Handlebars](https://handlebarsjs.com/) for templating. Pass
+values through `data`, reference them with `{{variable}}`.
+
+## Quick example
+
+```ts
+const pdf = await rendio.pdfs.create({
+  html: `
+    <h1>Invoice #{{invoice.number}}</h1>
+    <p>Client: {{client.name}}</p>
+    <p>Total: {{invoice.total}}</p>
+  `,
+  data: {
+    invoice: { number: "2026-042", total: "$4,320.00" },
+    client: { name: "Acme Corp" },
+  },
+});
+```
+
+## Variables
+
+Dot notation for nested objects:
+
+```html
+<p>Company: {{company.name}}</p>
+<p>Contact: {{company.contact.email}}</p>
+```
+
+### HTML escaping
+
+Handlebars escapes `<`, `>`, `&`, `"`, `'` by default. Triple braces
+`{{{variable}}}` output raw HTML.
+
+<Warning>
+  Only use `{{{triple braces}}}` with trusted content. Never with
+  user-provided input — it's an XSS vector.
+</Warning>
+
+## Loops — `{{#each}}`
+
+```html
+<tbody>
+  {{#each items}}
+  <tr>
+    <td>{{@index}}.</td>
+    <td>{{description}}</td>
+    <td>{{qty}}</td>
+    <td>{{total}}</td>
+  </tr>
+  {{/each}}
+</tbody>
+```
+
+Loop context variables:
+
+| Variable | Meaning |
+|---|---|
+| `@index` | Zero-based index |
+| `@first` / `@last` | Boolean — first / last iteration |
+| `@key` | Property name (when iterating an object) |
+| `this` | Current item |
+
+Empty-array fallback with `{{else}}`:
+
+```html
+{{#each items}}
+  <tr><td>{{description}}</td></tr>
+{{else}}
+  <tr><td>No items.</td></tr>
+{{/each}}
+```
+
+## Conditionals — `{{#if}}` / `{{#unless}}`
+
+```html
+{{#if client.vatNumber}}
+  <p>VAT: {{client.vatNumber}}</p>
+{{/if}}
+
+{{#if invoice.isPaid}}
+  <span class="badge paid">PAID</span>
+{{else}}
+  <span class="badge pending">PENDING</span>
+{{/if}}
+
+{{#unless invoice.isPaid}}
+  <p class="warning">Payment due {{invoice.dueDate}}</p>
+{{/unless}}
+```
+
+Handlebars treats these as falsy: `false`, `undefined`, `null`, `""`, `0`,
+`[]`. Everything else is truthy.
+
+## Formatting numbers and dates
+
+Handlebars has no built-in formatters. Format in your app before
+sending:
+
+```ts
+const fmtCurrency = (n: number) =>
+  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
+
+const fmtDate = (d: Date) =>
+  new Intl.DateTimeFormat("en-US", { dateStyle: "long" }).format(d);
+
+const pdf = await rendio.pdfs.create({
+  html: "<p>Total: {{total}}</p><p>Date: {{date}}</p>",
+  data: {
+    total: fmtCurrency(4320),
+    date: fmtDate(new Date()),
+  },
+});
+```
+
+## Syntax reference
+
+| Syntax | Purpose |
+|---|---|
+| `{{name}}` | Output variable (HTML-escaped) |
+| `{{{name}}}` | Output raw HTML |
+| `{{obj.prop}}` | Nested property |
+| `{{#each items}}...{{/each}}` | Array loop |
+| `{{#if x}}...{{/if}}` | Conditional |
+| `{{#if x}}...{{else}}...{{/if}}` | Conditional with else |
+| `{{#unless x}}...{{/unless}}` | Negated conditional |
+| `{{@index}}` | Loop index |
+| `{{@first}}` / `{{@last}}` | First / last flags |
+| `{{this}}` | Current iteration value |
+| `{{!-- comment --}}` | Not rendered |
+
+<Tip>
+  Pre-render complex templates server-side before sending to Rendio. For
+  large datasets (100+ items) consider paginating across multiple PDFs —
+  the 1&nbsp;MB HTML limit is per request.
+</Tip>

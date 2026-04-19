@@ -1,0 +1,137 @@
+---
+title: "TSX / React"
+description: "Use React components as PDF templates via renderToStaticMarkup."
+---
+
+Rendio renders HTML, not React. To use React components as templates,
+pre-render them to an HTML string with `renderToStaticMarkup` and send that
+string to the API.
+
+<Warning>
+  Server-side rendering only. `useState`, `useEffect`, refs, and browser APIs
+  are not available. Components must be pure functions of their props.
+</Warning>
+
+## Basic example
+
+```tsx
+// templates/Invoice.tsx
+interface InvoiceProps {
+  invoiceNumber: string;
+  date: string;
+  dueDate: string;
+  clientName: string;
+  items: { description: string; qty: number; total: string }[];
+  total: string;
+}
+
+export function Invoice({ invoiceNumber, date, dueDate, clientName, items, total }: InvoiceProps) {
+  return (
+    <html>
+      <head>
+        <style>{`
+          * { box-sizing: border-box; }
+          body { font-family: 'Inter', sans-serif; margin: 0; padding: 48px; color: #1a1a1a; font-size: 14px; }
+          .title { font-size: 32px; font-weight: 700; }
+          table { width: 100%; border-collapse: collapse; margin-top: 32px; }
+          th { text-align: left; padding: 10px 12px; font-size: 11px; text-transform: uppercase; color: #666; border-bottom: 1px solid #e5e5e5; }
+          td { padding: 12px; border-bottom: 1px solid #f0f0f0; }
+          .total-row { font-weight: 700; font-size: 16px; border-top: 2px solid #1a1a1a; }
+        `}</style>
+      </head>
+      <body>
+        <div className="title">Invoice #{invoiceNumber}</div>
+        <div>Issued {date} · Due {dueDate}</div>
+        <div>Bill to: <strong>{clientName}</strong></div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Description</th>
+              <th>Qty</th>
+              <th style={{ textAlign: "right" }}>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item, i) => (
+              <tr key={i}>
+                <td>{item.description}</td>
+                <td>{item.qty}</td>
+                <td style={{ textAlign: "right" }}>{item.total}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="total-row">
+              <td colSpan={2}>Total</td>
+              <td style={{ textAlign: "right" }}>{total}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </body>
+    </html>
+  );
+}
+```
+
+```ts
+// render.ts
+import { renderToStaticMarkup } from "react-dom/server";
+import Rendio from "rendio";
+import { Invoice } from "./templates/Invoice";
+
+const rendio = new Rendio();
+
+const html = renderToStaticMarkup(
+  <Invoice
+    invoiceNumber="2026-042"
+    date="April 13, 2026"
+    dueDate="April 27, 2026"
+    clientName="Globex Corporation"
+    items={[
+      { description: "UI design", qty: 20, total: "$1,600.00" },
+      { description: "Frontend development", qty: 25, total: "$2,000.00" },
+    ]}
+    total="$3,600.00"
+  />
+);
+
+const pdf = await rendio.pdfs.create({ html, pageSize: "A4" });
+```
+
+<Tip>
+  Use `renderToStaticMarkup` (not `renderToString`) — it omits React's
+  hydration attributes, keeping the HTML clean for Chromium and slightly
+  smaller.
+</Tip>
+
+## With Tailwind CSS
+
+Build a stylesheet from your component's class names (via Tailwind's CLI or
+oxide plugin), then pass it via `css`:
+
+```ts
+import { renderToStaticMarkup } from "react-dom/server";
+import Rendio from "rendio";
+import { Invoice } from "./templates/InvoiceTailwind";
+import tailwindCss from "./templates/invoice.css?raw";
+
+const rendio = new Rendio();
+const html = renderToStaticMarkup(<Invoice {...invoiceData} />);
+const pdf = await rendio.pdfs.create({ html, css: tailwindCss, pageSize: "A4" });
+```
+
+## Limitations
+
+| Not supported | Workaround |
+|---|---|
+| `useState`, `useReducer` | All data comes from props |
+| `useEffect`, `useRef` | Pre-compute values before render |
+| `next/image`, `next/link` | Use `<img>` and `<a>` directly |
+| Client-side event handlers | Irrelevant for PDF output |
+| CSS-in-JS (runtime engines) | Inline styles or the `css` parameter |
+
+## See also
+
+- [HTML & Handlebars](/templates/html) — plainer template option.
+- [Styling & pages](/templates/styling-for-print) — print-mode CSS, `@page`, Google Fonts.

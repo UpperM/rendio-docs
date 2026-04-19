@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 40" width="180" height="40">
+  <rect x="0" y="4" width="32" height="32" rx="7" fill="#38BDF8"/>
+  <text x="16" y="28" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+        font-size="22" font-weight="700" fill="#0F172A" text-anchor="middle">R</text>
+  <text x="44" y="27" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
+        font-size="22" font-weight="700" fill="#F8FAFC" letter-spacing="-0.5">rendio</text>
+</svg>

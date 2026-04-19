@@ -23,7 +23,7 @@ differ by quota, concurrency, feature gates, and retention.
 | **Webhooks** | ❌ | ❌ | ✅ |
 | **Custom CDN domain** | ❌ | ❌ | ✅ |
 | **OTEL export** | ❌ | ❌ | ✅ |
-| **Preview renders** (no API key) | 50 / day | Unlimited | Unlimited |
+| **Preview renders** (`preview: true`) | 50 / day | Unlimited | Unlimited |
 | **PDF retention** | 24 hours | 30 days | 30 days |
 | **Trace retention** | 1 day | 7 days | 90 days |
 | **Support** | GitHub issues | Email (48h) | Priority (24h) |
@@ -53,10 +53,13 @@ Rate limits are per API key, measured in a 60-second rolling window:
 
 | Plan | Rate limit |
 |---|---|
-| Preview (no auth) | 50 / day per user |
 | Free | 10 / min |
 | Starter | 60 / min |
 | Pro | 300 / min |
+
+Preview renders (`preview: true`) have a separate daily limit
+(Free: 50/day per user; paid: unlimited) and do not count against the
+per-minute rate limit.
 
 When you hit the limit you get `429 rate_limit_exceeded` with a
 `Retry-After` header. The SDKs automatically honor it.

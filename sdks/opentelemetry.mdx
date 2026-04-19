@@ -115,15 +115,13 @@ Open <http://localhost:16686>, select `my-service`, find
 
 ### `rendio.pdfs.create` (SDK span — one per user-level call)
 
+Attributes set by the SDK itself:
+
 | Attribute | Type | When set |
 |---|---|---|
-| `rendio.mode` | `"html" \| "url" \| "template"` | Always |
-| `rendio.output` | `"pdf" \| "png" \| "jpeg"` | Always |
+| `rendio.mode` | `"html" \| "url" \| "template"` | Always (pre-request) |
+| `rendio.output` | `"pdf" \| "png" \| "jpeg"` | Always (pre-request) |
 | `rendio.sdk.version` | string | Always |
-| `rendio.pages` | int | On success |
-| `rendio.size_bytes` | int | On success |
-| `rendio.pool_hit` | bool | On success |
-| `rendio.chromium_version` | string | On success |
 | `http.response.status_code` | int | On response |
 | `error.type` | string | On error |
 
@@ -136,13 +134,22 @@ Open <http://localhost:16686>, select `my-service`, find
 
 ### Gateway spans (server-side, visible when `traceparent` is injected)
 
+Attributes below are set by the Rendio gateway and worker, not by your
+SDK. They appear in your trace only when OTEL is configured to collect
+the server-side spans linked via the injected `traceparent` header
+(most OTLP exporters do this automatically).
+
 | Attribute | Value | Notes |
 |---|---|---|
-| `rendio.tier` | `"free" \| "starter" \| "pro"` | |
-| `rendio.user_id` | UUID | |
-| `rendio.api_key_id` | UUID | |
+| `rendio.tier` | `"free" \| "starter" \| "pro"` | Auth middleware |
+| `rendio.user_id` | UUID | Auth middleware |
+| `rendio.api_key_id` | UUID | Auth middleware |
 | `rendio.internal` | `true` | Only emitted when `true` (low-cardinality convention) |
 | `rendio.coldstart` | `true` | Only emitted when `true` |
+| `rendio.pages` | int | On successful render |
+| `rendio.size_bytes` | int | On successful render |
+| `rendio.pool_hit` | string (`"true"` / `"false"`) | On successful render |
+| `rendio.chromium_version` | string | On successful render |
 
 ## Opt-out
 

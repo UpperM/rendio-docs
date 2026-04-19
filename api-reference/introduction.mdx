@@ -30,11 +30,17 @@ Authorization: Bearer rk_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 ## Request & response headers
 
-Every response carries these headers:
+Every response carries:
 
 | Header | Meaning |
 |---|---|
 | `X-Rendio-Request-Id` | Unique request ID. Include it when you open a support ticket. |
+
+Successful renders and quota-related errors (`quota_exceeded`,
+`rate_limit_exceeded`) additionally carry:
+
+| Header | Meaning |
+|---|---|
 | `X-RateLimit-Limit` | Your plan's monthly render quota. |
 | `X-RateLimit-Remaining` | Renders remaining in the current billing period. |
 | `X-RateLimit-Reset` | Unix seconds when the quota resets. |

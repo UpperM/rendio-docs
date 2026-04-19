@@ -1,0 +1,67 @@
+---
+title: "Changelog"
+description: "Notable API and SDK changes."
+---
+
+This page tracks user-visible changes to the Rendio API and the official
+SDKs. For incident history, see [status.rendio.dev](https://status.rendio.dev).
+
+## Conventions
+
+- **Breaking changes** ship behind a new `/vN/` path prefix — the current
+  `/v1/` is the only stable API. We do not break existing paths without
+  deprecation.
+- **Added** — new parameters, endpoints, or fields. Safe to adopt.
+- **Changed** — behaviour tweaks that are backward-compatible but may
+  affect edge cases.
+- **Fixed** — bug fixes.
+- **Deprecated** — supported but no longer recommended; will be removed in
+  the next major version.
+
+## Staying informed
+
+- **SDK versions** — bumps follow semver. Watch the `rendio` package on
+  npm / PyPI / Go modules.
+- **Chromium version bumps** — read at render time from
+  `pdf.meta.chromiumVersion` (Node/Python) or `X-Chromium-Version` response
+  header. See [Chromium versions](/resources/chromium-versions).
+- **Incidents & maintenance** — [status.rendio.dev](https://status.rendio.dev).
+
+<Note>
+  Entries here are added as changes ship. If you want a specific change
+  called out, open an issue on the docs repo.
+</Note>
+
+---
+
+## v1.0.0 — April 13, 2026
+
+Initial public release.
+
+### API
+
+- `POST /v1/render` — HTML / URL → PDF / PNG / JPEG.
+- `GET /v1/files/{id}` — metadata for a previously rendered file.
+- `GET /health` — liveness probe.
+- URL mode: upload to CDN, return metadata + URL.
+- Buffer mode: raw bytes in the response body.
+- Page sizes: `A4`, `A3`, `Letter`, `Legal`, `Tabloid`.
+- `preview: true` watermark mode (used by the VSCode extension).
+- `Idempotency-Key` header for safe POST retries.
+- 17 stable error codes. See [Error codes](/api-reference/errors).
+- Per-plan quotas, rate limits, and feature gates. See
+  [Plans & quotas](/concepts/plans-and-quotas).
+
+### SDKs
+
+- **Node / TypeScript** — `rendio@0.1.0` on npm. Node 18+, Bun, Deno,
+  VSCode extension host. Zero runtime dependencies. Built-in retries
+  (default 2), OpenTelemetry tracing, typed error hierarchy.
+- **Python** — `rendio==0.1.0` on PyPI. Python 3.9+. Same taxonomy as Node.
+- **Go** — `github.com/rendio/rendio-go`. Go 1.22+. Same taxonomy.
+
+### VSCode extension
+
+- `rendio.rendio@0.1.0`. Live PDF preview (500 ms debounce) for `.html`,
+  `.hbs`, `.tsx`. Companion `<name>.data.json` mock data. Export command.
+  Page-size selector in the status bar.

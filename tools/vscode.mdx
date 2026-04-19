@@ -1,0 +1,115 @@
+---
+title: "VSCode extension"
+description: "Live PDF preview as you type, for .html, .hbs, .tsx templates."
+---
+
+The Rendio VSCode extension previews your template in a side panel as you
+type. Two modes:
+
+- **HTML preview** — no API key needed. The extension renders your HTML
+  directly in a VSCode webview. Layout only; no Rendio-specific features
+  (no Handlebars `data`, no `@page` overrides).
+- **PDF preview** — API key required. The extension calls
+  `POST /v1/render` with `preview: true` on every debounced save and
+  displays the real PDF output. Uses the watermarked preview mode, so it
+  doesn't consume your monthly quota (but counts against the daily
+  50-render preview limit on Free).
+
+## Install
+
+<Steps>
+  <Step title="From the VSCode marketplace">
+    Open Extensions (`Ctrl+Shift+X` / `Cmd+Shift+X`), search **Rendio**,
+    click **Install** on the extension published by `rendio`.
+
+    Or, from the command line:
+
+    ```bash
+    code --install-extension rendio.rendio
+    ```
+  </Step>
+  <Step title="Open a supported file">
+    `.html`, `.hbs`, `.handlebars`, or `.tsx` files are recognized.
+  </Step>
+  <Step title="Open the preview panel">
+    Press `Ctrl+Shift+R` / `Cmd+Shift+R`, or run
+    `Rendio: Preview to Side` from the command palette.
+  </Step>
+</Steps>
+
+## Configure your API key
+
+To switch from HTML preview to PDF preview, give the extension an API key
+in either of two ways:
+
+**VSCode settings** — `Ctrl+,`, search `rendio.apiKey`, paste your key.
+
+**Workspace `.env`** — recommended for per-project keys:
+
+```bash
+# .env in the root of your workspace
+RENDIO_API_KEY=rk_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+<Tip>
+  Get your API key from
+  [rendio.dev/dashboard](https://rendio.dev/dashboard). Enable
+  `preview: true` in render settings (default) to keep your monthly quota
+  clean while iterating.
+</Tip>
+
+## Features
+
+### Live preview
+
+Updates on every keystroke (debounced 500&nbsp;ms) and on every save.
+
+### Template formats
+
+| Format | How it's rendered |
+|---|---|
+| `.html` | Sent to the API as-is |
+| `.hbs`, `.handlebars` | Sent as `html`; the extension loads a sibling `<name>.data.json` file as `data` if it exists |
+| `.tsx` | Bundled with esbuild, then rendered via React's `renderToStaticMarkup` before being sent |
+
+### Mock data
+
+`Ctrl+Shift+P` → `Rendio: Edit Mock Data` opens a sibling `.data.json`
+file (created if missing). The JSON is passed as `data` for Handlebars
+interpolation, or as props for TSX components.
+
+### Export (watermark-free)
+
+`Ctrl+Shift+P` → `Rendio: Export PDF` renders with `preview: false` and
+saves the output to a location of your choice. This **does** consume your
+monthly quota.
+
+### Page size
+
+Set from the status-bar dropdown at the bottom of the editor, or via
+`Ctrl+Shift+P` → `Rendio: Select Page Size`. Persists per workspace.
+
+### Status bar + output channel
+
+The status bar shows the last render time and PDF size. All render activity
+is logged to the **Rendio** output channel (**View → Output**, select
+**Rendio** from the dropdown).
+
+## Shortcuts
+
+| Shortcut | Action |
+|---|---|
+| `Ctrl+Shift+R` / `Cmd+Shift+R` | Preview to Side |
+| `Ctrl+Shift+P` → `Rendio: Export PDF` | Export without watermark |
+| `Ctrl+Shift+P` → `Rendio: Edit Mock Data` | Open companion data file |
+| `Ctrl+Shift+P` → `Rendio: Select Page Size` | Change page size |
+
+## Requirements
+
+- VSCode 1.80 or later.
+- For PDF preview: an API key plus an internet connection. HTML preview
+  works offline.
+
+## Marketplace
+
+[marketplace.visualstudio.com/items?itemName=rendio.rendio](https://marketplace.visualstudio.com/items?itemName=rendio.rendio)

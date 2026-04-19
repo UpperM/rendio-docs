@@ -1,0 +1,133 @@
+---
+title: "Next.js"
+description: "Server-side PDF generation from a Next.js App Router API route."
+---
+
+Add a PDF endpoint to a Next.js project in under 30 lines of code.
+
+## Setup
+
+```bash
+npm install rendio
+```
+
+```bash
+# .env.local
+RENDIO_API_KEY=rk_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+## API route
+
+```ts
+// app/api/pdf/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import Rendio, {
+  RendioError,
+  ValidationError,
+  QuotaExceededError,
+  PlanLimitError,
+} from "rendio";
+
+const rendio = new Rendio(); // reads RENDIO_API_KEY — module-scope so it's reused
+
+export async function POST(req: NextRequest) {
+  try {
+    const { html, data, pageSize } = (await req.json()) as {
+      html: string;
+      data?: Record<string, unknown>;
+      pageSize?: "A4" | "Letter" | "A3" | "Legal" | "Tabloid";
+    };
+
+    const pdf = await rendio.pdfs.create({ html, data, pageSize });
+    return NextResponse.json(pdf);
+  } catch (err) {
+    if (err instanceof ValidationError) {
+      return NextResponse.json(
+        { error: err.message, code: err.code },
+        { status: 400 },
+      );
+    }
+    if (err instanceof QuotaExceededError) {
+      return NextResponse.json(
+        { error: "Rendio quota exhausted", code: err.code },
+        { status: 503 },
+      );
+    }
+    if (err instanceof PlanLimitError) {
+      return NextResponse.json(
+        { error: `Feature "${err.feature}" requires a higher plan`, code: err.code },
+        { status: 402 },
+      );
+    }
+    if (err instanceof RendioError) {
+      console.error("[rendio]", {
+        code: err.code,
+        requestId: err.requestId,
+        traceId: err.traceId,
+      });
+      return NextResponse.json(
+        { error: err.message, code: err.code },
+        { status: err.statusCode ?? 500 },
+      );
+    }
+    throw err;
+  }
+}
+```
+
+## Client usage
+
+```ts
+// lib/generate-pdf.ts
+export async function generatePdf(html: string, data?: Record<string, unknown>) {
+  const res = await fetch("/api/pdf", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ html, data, pageSize: "A4" }),
+  });
+
+  if (!res.ok) {
+    const { error } = await res.json();
+    throw new Error(error);
+  }
+
+  return (await res.json()) as { id: string; url: string; pages: number; size: number };
+}
+```
+
+<Tip>
+  The `Rendio` client is instantiated at module scope, not inside the
+  handler. Reusing it across requests avoids per-request setup and keeps
+  keep-alive connections warm.
+</Tip>
+
+## Edge runtime
+
+Rendio's SDK works on the Edge runtime (uses global `fetch`). Add:
+
+```ts
+export const runtime = "edge";
+```
+
+at the top of the route file. OpenTelemetry tracing uses Node's
+`AsyncLocalStorage` — on Edge that's stubbed, so trace propagation is
+limited. If you rely on APM correlation, stick to the Node runtime.
+
+## Streaming buffer mode
+
+When you want to stream raw PDF bytes straight to the browser (no CDN hop):
+
+```ts
+export async function POST(req: NextRequest) {
+  const { html } = await req.json();
+  const result = await rendio.pdfs.create({ html, response: "buffer" });
+
+  return new Response(result.buffer, {
+    status: 200,
+    headers: {
+      "Content-Type": "application/pdf",
+      "Content-Disposition": 'attachment; filename="invoice.pdf"',
+    },
+  });
+}
+```

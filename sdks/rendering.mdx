@@ -1,0 +1,151 @@
+---
+title: "Rendering PDFs"
+description: "pdfs.create() and pdfs.get() — method signatures, parameters, return types."
+---
+
+Method-level reference for the `pdfs` resource. Parameter semantics are
+shared with [`POST /v1/render`](/api-reference/render) — this page focuses
+on SDK ergonomics.
+
+## `pdfs.create(params, options?)`
+
+Render HTML (or a URL) to PDF / PNG / JPEG. Exactly one of `html` or
+`source` must be provided.
+
+<Tabs>
+  <Tab title="Node">
+    ```ts
+    const pdf = await rendio.pdfs.create(
+      {
+        html: "<h1>Invoice #{{n}}</h1>",
+        data: { n: "2026-042" },
+        pageSize: "A4",
+      },
+      { idempotencyKey: "invoice-8F27" } // optional per-request overrides
+    );
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    pdf = client.pdfs.create(
+        html="<h1>Invoice #{{n}}</h1>",
+        data={"n": "2026-042"},
+        page_size="A4",
+        idempotency_key="invoice-8F27",
+    )
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    pdf, err := client.Pdfs.Create(ctx,
+        rendio.PdfCreateParams{
+            HTML:     "<h1>Invoice #{{n}}</h1>",
+            Data:     map[string]any{"n": "2026-042"},
+            PageSize: rendio.PageSizeA4,
+        },
+        rendio.WithIdempotencyKey("invoice-8F27"),
+    )
+    ```
+  </Tab>
+</Tabs>
+
+### URL mode (default)
+
+`response: "url"` uploads the rendered file to Rendio's CDN and returns
+metadata + a CDN URL.
+
+```ts
+const pdf = await rendio.pdfs.create({
+  html: "<h1>Invoice</h1>",
+  pageSize: "A4",
+});
+
+pdf.id;        // "rd_abc1234567890def"
+pdf.url;       // "https://cdn.rendio.dev/f/rd_...pdf"
+pdf.pages;     // 1
+pdf.size;      // bytes
+pdf.expiresAt; // ISO 8601, null on preview renders
+pdf.meta.chromiumVersion;
+pdf.meta.renderTimeMs;
+```
+
+### Buffer mode
+
+`response: "buffer"` streams raw bytes back — no CDN storage, no storage
+quota consumed.
+
+```ts
+import { writeFileSync } from "node:fs";
+
+const result = await rendio.pdfs.create({
+  html: "<h1>Invoice</h1>",
+  response: "buffer",
+});
+
+writeFileSync("invoice.pdf", Buffer.from(result.buffer));
+```
+
+### Per-request options
+
+| Option | Type | Purpose |
+|---|---|---|
+| `timeout` | number (ms) | Override the client-level timeout |
+| `maxRetries` | number | Override the client-level retry count |
+| `signal` | `AbortSignal` | Cancel the request from the caller |
+| `idempotencyKey` | string | Deduplicate retries (URL mode only) |
+
+## `pdfs.get(id)`
+
+Fetch metadata for a previously rendered file.
+
+<Tabs>
+  <Tab title="Node">
+    ```ts
+    const pdf = await rendio.pdfs.get("rd_abc1234567890def");
+    console.log(pdf.url);
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    pdf = client.pdfs.get("rd_abc1234567890def")
+    print(pdf.url)
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    pdf, err := client.Pdfs.Get(ctx, "rd_abc1234567890def")
+    if err != nil { return err }
+    fmt.Println(pdf.URL)
+    ```
+  </Tab>
+</Tabs>
+
+Throws `NotFoundError` when the ID doesn't exist, has expired, or was
+rendered in preview mode (preview files are not indexed).
+
+## Return types (Node / TypeScript)
+
+```ts
+import type {
+  PdfCreateParams,
+  PdfUrlResult,
+  PdfBufferResult,
+  RenderMeta,
+  RendioOptions,
+  PageSize,
+  ResponseMode,
+} from "rendio";
+```
+
+| Type | Shape |
+|---|---|
+| `PdfUrlResult` | `{ id, url, pages, size, expiresAt, meta }` |
+| `PdfBufferResult` | `{ buffer: ArrayBuffer, meta }` |
+| `RenderMeta` | `{ chromiumVersion?, renderTimeMs?, phases?, rateLimit? }` |
+
+## Full parameter reference
+
+Every field on `POST /v1/render` is available here under its camelCase
+name (Node / Go) or snake_case equivalent (Python). See
+[POST /v1/render](/api-reference/render) for the complete parameter table,
+plan gates, and validation rules.

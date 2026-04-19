@@ -1,0 +1,139 @@
+---
+title: "Styling & pages"
+description: "Print-mode CSS — page size, @page, margins, page breaks, Google Fonts."
+---
+
+Chromium renders your HTML in print mode. Standard CSS works, with a few
+print-specific additions worth knowing.
+
+## Page size
+
+Pass `pageSize` to the API. Supported values: `A4` (default), `A3`,
+`Letter`, `Legal`, `Tabloid`.
+
+```ts
+await rendio.pdfs.create({ html, pageSize: "Letter" });
+```
+
+For custom sizes, use `width` and `height` (CSS units — `"210mm"`,
+`"8.5in"`, etc). These override `pageSize`.
+
+```ts
+await rendio.pdfs.create({ html, width: "210mm", height: "297mm" });
+```
+
+Or use CSS `@page { size: ... }` together with `preferCSSPageSize: true`.
+
+## Page margins
+
+Two ways:
+
+```ts
+// Via the API — applies to every page
+await rendio.pdfs.create({
+  html,
+  margin: { top: "20mm", bottom: "20mm", left: "25mm", right: "25mm" },
+});
+
+// Via CSS — more control (e.g. different margins per named page)
+await rendio.pdfs.create({
+  html,
+  css: `@page { margin: 20mm 25mm; }`,
+});
+```
+
+## Page breaks
+
+```css
+.chapter       { page-break-before: always; }    /* start a new page here */
+.invoice-row   { page-break-inside: avoid; }     /* never split across pages */
+thead          { display: table-header-group; }  /* repeat table header on each page */
+tfoot          { display: table-footer-group; }  /* repeat footer too */
+```
+
+See the [Page breaks guide](/guides/page-breaks) for more patterns
+(keep-with-next, avoid orphans, widow control).
+
+## Google Fonts
+
+```ts
+await rendio.pdfs.create({
+  html: `<h1>Invoice</h1>`,
+  css: `
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+    body { font-family: 'Inter', sans-serif; padding: 48px; }
+    h1 { font-weight: 700; font-size: 28px; }
+  `,
+});
+```
+
+<Warning>
+  Remote fonts require a network request at render time. For stable latency
+  in production, embed the font as a base64 data URI in a `@font-face` rule
+  instead — renders become deterministic and don't depend on
+  `fonts.googleapis.com` being up.
+
+  External resources (including remote fonts) require a **Starter plan or
+  above** — they are rejected on the Free plan with
+  `plan_limit` / `feature: "external_resources"`.
+</Warning>
+
+## Chromium print-mode support
+
+| Feature | Support |
+|---|---|
+| Flexbox, Grid | ✅ Full |
+| CSS custom properties (`--color`) | ✅ Full |
+| `@page` rule | ✅ Full |
+| `page-break-*` / `break-*` | ✅ Full |
+| `position: fixed` | ✅ Renders on every page (useful for headers/footers) |
+| `position: sticky` | ⚠️ First page only |
+| SVG (inline) | ✅ Full |
+| `<canvas>` | ✅ Rendered as-is at snapshot time |
+| `backdrop-filter`, `filter` | ✅ Full |
+| Web fonts (`@font-face`) | ✅ Full |
+| CSS animations / transitions | ❌ Ignored — the PDF is a static snapshot |
+
+## Full example — multi-page report
+
+```ts
+const pdf = await rendio.pdfs.create({
+  html: `
+    <header class="page-header">
+      <h1>Q1 2026 Report</h1>
+      <span>Acme Studio</span>
+    </header>
+    <section class="summary">
+      <h2>Executive Summary</h2>
+      <p>Revenue grew 42% quarter-over-quarter.</p>
+    </section>
+    <section class="chapter">
+      <h2>Revenue Breakdown</h2>
+      <table>
+        <thead><tr><th>Product</th><th>Revenue</th><th>Growth</th></tr></thead>
+        <tbody>
+          <tr><td>API subscriptions</td><td>$84,000</td><td>+38%</td></tr>
+          <tr><td>Enterprise seats</td><td>$52,000</td><td>+61%</td></tr>
+        </tbody>
+      </table>
+    </section>
+  `,
+  css: `
+    @page { margin: 20mm 24mm; }
+    * { box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; font-size: 13px; margin: 0; }
+    .page-header { display: flex; justify-content: space-between; border-bottom: 2px solid #000; padding-bottom: 12px; margin-bottom: 32px; }
+    h1 { font-size: 22px; margin: 0; }
+    h2 { font-size: 15px; margin: 0 0 12px; }
+    .chapter { page-break-before: always; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    th { text-align: left; padding: 8px 10px; background: #f5f5f5; font-size: 11px; text-transform: uppercase; }
+    td { padding: 8px 10px; border-bottom: 1px solid #ebebeb; }
+  `,
+  pageSize: "A4",
+  printBackground: true,
+});
+```
+
+Note `printBackground: true` — without it, `background-color` and
+`background-image` are **not** rendered (Chromium treats it as "save ink").
