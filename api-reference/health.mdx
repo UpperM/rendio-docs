@@ -1,0 +1,81 @@
+---
+title: "GET /health"
+description: "Liveness probe for the Rendio API."
+api: "GET https://api.rendio.dev/health"
+---
+
+Liveness probe. No authentication required. Returns the status of the API
+and its direct dependencies (database, worker).
+
+## Response
+
+<Tabs>
+  <Tab title="Healthy (200)">
+    ```json
+    {
+      "status": "healthy",
+      "version": "1.2.0",
+      "uptime": 3600,
+      "services": {
+        "database": "healthy",
+        "worker": "healthy"
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="Degraded (200 or 503)">
+    ```json
+    {
+      "status": "degraded",
+      "version": "1.2.0",
+      "uptime": 3600,
+      "services": {
+        "database": "healthy",
+        "worker": "unhealthy"
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+<ResponseField name="status" type="string">`"healthy"` or `"degraded"`.</ResponseField>
+<ResponseField name="version" type="string">Deployed application version.</ResponseField>
+<ResponseField name="uptime" type="integer">Process uptime in seconds.</ResponseField>
+<ResponseField name="services.database" type="string">`"healthy"` or `"unhealthy"`.</ResponseField>
+<ResponseField name="services.worker" type="string">`"healthy"` or `"unhealthy"`.</ResponseField>
+
+## Status codes
+
+| Condition | HTTP | `status` field |
+|---|---|---|
+| Everything up | `200` | `"healthy"` |
+| Worker unreachable, DB up | `200` | `"degraded"` |
+| Database unreachable | `503` | `"degraded"` |
+
+The endpoint returns `503` specifically when the database is unhealthy, so
+it works as a binary probe for load balancers even though worker-only
+outages are surfaced as `"degraded"` with a `200`. Alert on the JSON payload
+if you need fine-grained detection.
+
+## Examples
+
+<RequestExample>
+
+```bash cURL
+curl https://api.rendio.dev/health
+```
+
+```yaml docker-compose
+services:
+  myapp:
+    healthcheck:
+      test: ["CMD", "curl", "-f", "https://api.rendio.dev/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+```
+
+</RequestExample>
+
+For real-time status and incident history, see
+[status.rendio.dev](https://status.rendio.dev).

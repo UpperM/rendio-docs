@@ -1,0 +1,319 @@
+---
+title: "POST /v1/render"
+description: "Render HTML or a URL to PDF, PNG, or JPEG."
+api: "POST https://api.rendio.dev/v1/render"
+---
+
+Renders HTML (or a remote URL) and returns either a CDN URL (default) or raw
+binary bytes. Exactly one of `html` or `source` must be provided.
+
+## Authentication
+
+Bearer token. See [Authentication](/authentication).
+
+```
+Authorization: Bearer rk_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+## Request headers
+
+| Header | Required | Purpose |
+|---|---|---|
+| `Authorization` | Yes | `Bearer <api-key>`. Omit only for `preview: true`. |
+| `Content-Type` | Yes | `application/json` |
+| `Idempotency-Key` | No | Deduplicates retries for 24h. URL mode only. Must match `[A-Za-z0-9_-]{1,255}`. |
+| `traceparent` | No | W3C trace propagation. If set, gateway spans are linked to your trace. |
+
+## Body parameters
+
+### Required (exactly one)
+
+<ParamField body="html" type="string">
+  Raw HTML (or a Handlebars template string). Max **1&nbsp;MB**. Mutually
+  exclusive with `source`.
+</ParamField>
+
+<ParamField body="source" type="string">
+  HTTP(S) URL to render. Max 2048 characters. Subject to SSRF policy —
+  private IP ranges are blocked. **Starter plan or above.**
+</ParamField>
+
+### Common
+
+<ParamField body="css" type="string" default="''">
+  CSS stylesheet injected alongside the HTML. Max 1&nbsp;MB.
+</ParamField>
+
+<ParamField body="data" type="object" default="{}">
+  Template variables for Handlebars interpolation (`{{variable}}` in `html`).
+</ParamField>
+
+<ParamField body="pageSize" type="string" default="A4">
+  One of `A4`, `A3`, `Letter`, `Legal`, `Tabloid`.
+</ParamField>
+
+<ParamField body="response" type="string" default="url">
+  One of `url` or `buffer`. `url` uploads to storage and returns a CDN link.
+  `buffer` streams bytes in the response body. Preview mode must use `buffer`.
+</ParamField>
+
+<ParamField body="output" type="string" default="pdf">
+  One of `pdf`, `png`, `jpeg`. PNG/JPEG are full-page screenshots.
+</ParamField>
+
+<ParamField body="encode" type="string" default="raw">
+  One of `raw` (binary) or `base64` (JSON envelope). Only applies to
+  `response: "buffer"`.
+</ParamField>
+
+<ParamField body="preview" type="boolean" default="false">
+  Render with a development watermark. Skips authentication and quota, but is
+  IP-rate-limited and must use `response: "buffer"`.
+</ParamField>
+
+<ParamField body="waitUntil" type="string" default="domcontentloaded">
+  When to consider the page loaded. One of `commit`, `domcontentloaded`,
+  `load`, `networkidle`. Use `load` or `networkidle` when the HTML references
+  remote assets.
+</ParamField>
+
+<ParamField body="filename" type="string">
+  Custom filename (max 255 chars). Surfaces in `Content-Disposition` for
+  `response: "buffer"` and in the CDN URL path for `response: "url"`.
+</ParamField>
+
+### Layout
+
+<ParamField body="landscape" type="boolean" default="false" />
+
+<ParamField body="margin" type="object">
+  Page margins. CSS-like strings on any subset of `top`, `right`, `bottom`,
+  `left` (e.g. `"1in"`, `"20mm"`).
+</ParamField>
+
+<ParamField body="width" type="string">
+  Custom page width (e.g. `"210mm"`). Overrides `pageSize`.
+</ParamField>
+
+<ParamField body="height" type="string">
+  Custom page height. Overrides `pageSize`.
+</ParamField>
+
+<ParamField body="scale" type="number" default="1">
+  Scale factor. Range `0.1` – `2`.
+</ParamField>
+
+<ParamField body="preferCSSPageSize" type="boolean" default="false">
+  Respect `@page { size: ... }` declared in CSS instead of `pageSize`.
+</ParamField>
+
+### Headers & footers
+
+<ParamField body="displayHeaderFooter" type="boolean" default="false" />
+
+<ParamField body="headerTemplate" type="string">
+  HTML template for the header. Max 1&nbsp;MB. Use the standard
+  Puppeteer/Playwright template variables (`pageNumber`, `totalPages`, etc).
+</ParamField>
+
+<ParamField body="footerTemplate" type="string">
+  HTML template for the footer. Max 1&nbsp;MB.
+</ParamField>
+
+### Timing
+
+<ParamField body="delay" type="integer">
+  Milliseconds to wait after page load before capturing. Range `0` – `10000`.
+</ParamField>
+
+<ParamField body="waitForSelector" type="string">
+  CSS selector to wait for before rendering. Max 500 chars, 10s timeout.
+</ParamField>
+
+<ParamField body="navTimeoutMs" type="integer" default="15000">
+  URL-mode only. Navigation timeout in ms. Range `1000` – `30000`.
+</ParamField>
+
+### Advanced (paid plans)
+
+<ParamField body="javascript" type="string">
+  JavaScript executed after page load. Max 100&nbsp;KB, 5s timeout.
+  **Starter plan or above.**
+</ParamField>
+
+<ParamField body="tagged" type="boolean">
+  Produce a tagged (accessible) PDF. **Starter plan or above.**
+</ParamField>
+
+<ParamField body="pageRanges" type="string">
+  Page ranges to include, e.g. `"1-3,5"`.
+</ParamField>
+
+<ParamField body="outline" type="boolean" default="false">
+  Generate a PDF outline from headings.
+</ParamField>
+
+<ParamField body="printBackground" type="boolean" default="false">
+  Render `background-color` and `background-image`.
+</ParamField>
+
+## Response — URL mode
+
+`Content-Type: application/json`
+
+```json
+{
+  "id": "rd_abc1234567890def",
+  "url": "https://cdn.rendio.dev/f/rd_abc1234567890def.pdf",
+  "pages": 2,
+  "size": 84213,
+  "expiresAt": "2026-04-26T12:00:00.000Z",
+  "meta": {
+    "chromiumVersion": "128.0.6613.120",
+    "renderTimeMs": 312
+  }
+}
+```
+
+<ResponseField name="id" type="string">
+  Opaque file ID (format `rd_[a-f0-9]{16}`). Use with `GET /v1/files/{id}`.
+</ResponseField>
+<ResponseField name="url" type="string">CDN URL.</ResponseField>
+<ResponseField name="pages" type="integer">Page count (PDF only; 0 for screenshots).</ResponseField>
+<ResponseField name="size" type="integer">File size in bytes.</ResponseField>
+<ResponseField name="expiresAt" type="string | null">
+  ISO&nbsp;8601 expiration. `null` if retention is indefinite for your plan.
+</ResponseField>
+<ResponseField name="meta.chromiumVersion" type="string | null" />
+<ResponseField name="meta.renderTimeMs" type="integer | null" />
+
+## Response — buffer mode
+
+Raw bytes in the response body.
+
+- `Content-Type: application/pdf` (or `image/png`, `image/jpeg`).
+- Response headers include `X-Chromium-Version`, `X-Render-Time-Ms`,
+  `Server-Timing`, `X-Rendio-Request-Id`, and the `X-RateLimit-*` triplet.
+
+## Errors
+
+| Code | HTTP | Notes |
+|---|---|---|
+| `validation_error` | 400 | Malformed body or invalid param |
+| `url_blocked` | 400 | `source` blocked by SSRF policy |
+| `invalid_api_key` | 401 | Missing / revoked key |
+| `plan_limit` | 402 | `error.feature` names the gate (`url_to_pdf`, `tagged_pdf`, `custom_js_execution`, `external_resources`, `page_count`) |
+| `render_timeout` | 408 | Render > 30s |
+| `idempotency_conflict` | 409 | Key reused with different body (or still in flight) |
+| `html_too_large` | 413 | HTML / CSS > 1 MB |
+| `rate_limit_exceeded` | 429 | Retry after `Retry-After` seconds |
+| `quota_exceeded` | 429 | Monthly quota / spending cap reached |
+| `concurrent_limit_exceeded` | 429 | Too many in-flight renders |
+| `render_failed` | 500 | Chromium crash or broken HTML |
+| `server_busy` | 503 | Backend saturated — retry with backoff |
+| `url_unreachable` / `url_http_error` / `url_timeout` | 502 / 502 / 504 | URL-mode network failures |
+
+Full taxonomy and retry rules: [Error codes](/api-reference/errors).
+
+## Examples
+
+<RequestExample>
+
+```bash cURL
+curl https://api.rendio.dev/v1/render \
+  -H "Authorization: Bearer $RENDIO_API_KEY" \
+  -H "Idempotency-Key: $(uuidgen)" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "html": "<h1>Invoice #{{n}}</h1>",
+    "data": { "n": "2026-042" },
+    "pageSize": "A4",
+    "printBackground": true
+  }'
+```
+
+```ts Node
+import Rendio, {
+  QuotaExceededError,
+  RateLimitError,
+} from "rendio";
+
+const rendio = new Rendio();
+
+try {
+  const pdf = await rendio.pdfs.create({
+    html: "<h1>Invoice #{{n}}</h1>",
+    data: { n: "2026-042" },
+    pageSize: "A4",
+    printBackground: true,
+  });
+  console.log(pdf.url);
+} catch (err) {
+  if (err instanceof QuotaExceededError) {
+    // Stop the queue — upgrade or cap adjustment is a human decision
+    throw err;
+  }
+  if (err instanceof RateLimitError && err.retryAfter) {
+    await new Promise((r) => setTimeout(r, err.retryAfter! * 1000));
+  }
+  throw err;
+}
+```
+
+```python Python
+import rendio
+from rendio import QuotaExceededError, RateLimitError
+import time
+
+client = rendio.Rendio()
+
+try:
+    pdf = client.pdfs.create(
+        html="<h1>Invoice #{{n}}</h1>",
+        data={"n": "2026-042"},
+        page_size="A4",
+        print_background=True,
+    )
+    print(pdf.url)
+except QuotaExceededError:
+    raise
+except RateLimitError as err:
+    if err.retry_after:
+        time.sleep(err.retry_after)
+    raise
+```
+
+```go Go
+pdf, err := client.Pdfs.Create(ctx, rendio.PdfCreateParams{
+    HTML:            "<h1>Invoice #{{n}}</h1>",
+    Data:            map[string]any{"n": "2026-042"},
+    PageSize:        rendio.PageSizeA4,
+    PrintBackground: rendio.Bool(true),
+})
+if err != nil {
+    var quota *rendio.QuotaExceededError
+    if errors.As(err, &quota) {
+        return err // upgrade path
+    }
+    var rate *rendio.RateLimitError
+    if errors.As(err, &rate) && rate.RetryAfter > 0 {
+        time.Sleep(time.Duration(rate.RetryAfter) * time.Second)
+    }
+    return err
+}
+fmt.Println(pdf.URL)
+```
+
+</RequestExample>
+
+## Notes
+
+- **Page limits.** Free plan is capped at **10 pages** per render; Starter
+  and Pro have no page cap. Exceeding returns `plan_limit` with
+  `error.feature: "page_count"`.
+- **External resources on Free.** The Free plan rejects HTML/CSS that
+  references absolute URLs for images, fonts, or stylesheets. Upgrade to
+  Starter to enable. Error: `plan_limit` with
+  `error.feature: "external_resources"`.
+- **Retention.** Free = 24 hours, Starter/Pro = 30 days. Past the window the
+  CDN URL returns `404`.

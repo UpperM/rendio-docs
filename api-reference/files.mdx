@@ -1,0 +1,92 @@
+---
+title: "GET /v1/files/{id}"
+description: "Retrieve metadata for a previously rendered file by its ID."
+api: "GET https://api.rendio.dev/v1/files/{id}"
+---
+
+Returns the CDN URL and metadata for a previously rendered file. The file
+must belong to the authenticated account.
+
+## Authentication
+
+Bearer token. See [Authentication](/authentication).
+
+## Path parameters
+
+<ParamField path="id" type="string" required>
+  File identifier — format `rd_[a-f0-9]{16}` (or legacy 32-hex-char format).
+</ParamField>
+
+## Response
+
+`200 OK`, `Content-Type: application/json`
+
+```json
+{
+  "id": "rd_abc1234567890def",
+  "url": "https://cdn.rendio.dev/f/rd_abc1234567890def.pdf",
+  "pages": 2,
+  "size": 142857,
+  "expiresAt": null
+}
+```
+
+<ResponseField name="id" type="string">File identifier.</ResponseField>
+<ResponseField name="url" type="string">CDN download URL.</ResponseField>
+<ResponseField name="pages" type="integer">Page count (PDF only; 0 for screenshots).</ResponseField>
+<ResponseField name="size" type="integer">File size in bytes.</ResponseField>
+<ResponseField name="expiresAt" type="string | null">
+  ISO&nbsp;8601 expiration. **Always `null`** on this endpoint — look at
+  the CDN response headers for the effective expiry instead.
+</ResponseField>
+
+## Errors
+
+| Status | Code | Cause |
+|---|---|---|
+| 400 | `validation_error` | `id` does not match the expected format |
+| 401 | `invalid_api_key` | Missing, malformed, or revoked key |
+| 404 | `not_found` | File does not exist, is expired, belongs to a different account, or was rendered in preview mode |
+
+## Examples
+
+<RequestExample>
+
+```bash cURL
+curl https://api.rendio.dev/v1/files/rd_abc1234567890def \
+  -H "Authorization: Bearer $RENDIO_API_KEY"
+```
+
+```ts Node
+const pdf = await rendio.pdfs.get("rd_abc1234567890def");
+console.log(pdf.url);
+```
+
+```python Python
+pdf = client.pdfs.get("rd_abc1234567890def")
+print(pdf.url)
+```
+
+```go Go
+pdf, err := client.Pdfs.Get(ctx, "rd_abc1234567890def")
+if err != nil { return err }
+fmt.Println(pdf.URL)
+```
+
+</RequestExample>
+
+## Retention
+
+Files are kept per plan:
+
+| Plan | Retention |
+|---|---|
+| Free | 24 hours |
+| Starter | 30 days |
+| Pro | 30 days |
+
+Past the window, the `id` returns `404` and the CDN URL returns `404` too.
+Store the `url` at render time, or re-render when you need the file.
+
+Preview-mode renders (`preview: true`) are never indexed by this endpoint —
+they are transient and not tied to an account.

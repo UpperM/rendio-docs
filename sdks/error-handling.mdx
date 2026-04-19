@@ -1,0 +1,224 @@
+---
+title: "Error handling"
+description: "Typed error hierarchy. Branch on the class, not on the message."
+---
+
+Every Rendio SDK throws typed errors that map 1:1 to the server's
+[error codes](/api-reference/errors). Branch on the error class or on
+`error.code` — never on `error.message`.
+
+## Error hierarchy
+
+```
+RendioError (base)
+├── AuthenticationError         — 401, missing/invalid key
+├── ValidationError             — 400, 413
+├── PlanLimitError              — 402 (has `feature`)
+├── NotFoundError               — 404
+├── TimeoutError                — 408 (server) or client-side timeout
+├── IdempotencyError            — 409
+├── RateLimitError              — 429 rate_limit_exceeded (has `retryAfter`)
+├── QuotaExceededError          — 429 quota_exceeded (not retryable)
+├── ConcurrentLimitError        — 429 concurrent_limit_exceeded (has `retryAfter`)
+├── RenderFailedError           — 500 render_failed
+├── InternalError               — 500 / unexpected
+├── UrlBlockedError             — 400 url_blocked (SSRF policy)
+├── UrlUnreachableError         — 502 url_unreachable
+├── UrlHttpError                — 502 url_http_error
+├── UrlTimeoutError             — 504 url_timeout
+├── ServerBusyError             — 503 server_busy
+└── ConnectionError             — network failure (DNS, socket hang-up)
+```
+
+## Properties on every error
+
+| Field | Type | When populated |
+|---|---|---|
+| `code` | `string` | Always. Stable machine-readable code. |
+| `message` | `string` | Always. Human-readable — do not branch on it. |
+| `statusCode` | `number \| null` | HTTP status, or `null` for client-side errors. |
+| `requestId` | `string \| undefined` | From `X-Rendio-Request-Id`. Share with support. |
+| `traceId` | `string \| undefined` | W3C trace ID of the active OTEL span. |
+| `spanId` | `string \| undefined` | Span ID of the active OTEL span. |
+
+`RateLimitError` and `ConcurrentLimitError` additionally expose
+`retryAfter: number | null` (seconds). `PlanLimitError` exposes
+`feature: string` naming the gate (`url_to_pdf`, `tagged_pdf`,
+`custom_js_execution`, `external_resources`, `page_count`).
+
+## Production handler
+
+<Tabs>
+  <Tab title="Node">
+    ```ts
+    import Rendio, {
+      AuthenticationError,
+      ValidationError,
+      QuotaExceededError,
+      RateLimitError,
+      PlanLimitError,
+      TimeoutError,
+      RenderFailedError,
+      RendioError,
+    } from "rendio";
+
+    const rendio = new Rendio();
+
+    export async function render(html: string): Promise<string> {
+      try {
+        const pdf = await rendio.pdfs.create({ html });
+        return pdf.url;
+      } catch (err) {
+        if (err instanceof AuthenticationError) {
+          // Key is missing or was revoked — stop calling the API
+          throw new Error("Rendio key invalid — check RENDIO_API_KEY");
+        }
+        if (err instanceof ValidationError) {
+          // Bad input. Fix the template, not retry.
+          throw new Error(`Bad request: ${err.code}`);
+        }
+        if (err instanceof PlanLimitError) {
+          throw new Error(`Feature "${err.feature}" requires a higher plan`);
+        }
+        if (err instanceof QuotaExceededError) {
+          // Hard stop — upgrading is a human decision
+          throw new Error("Rendio quota exhausted — pausing queue");
+        }
+        if (err instanceof RateLimitError && err.retryAfter) {
+          await new Promise((r) => setTimeout(r, err.retryAfter! * 1000));
+          return render(html); // one manual retry after the server-requested delay
+        }
+        if (err instanceof RenderFailedError) {
+          // Chromium crashed or the HTML is broken. Retrying won't help.
+          throw new Error(`Render failed: ${err.message}`);
+        }
+        if (err instanceof TimeoutError) {
+          throw new Error("Render timed out — simplify the template");
+        }
+        if (err instanceof RendioError) {
+          // Log with request/trace IDs for support
+          console.error("Rendio error", {
+            code: err.code,
+            requestId: err.requestId,
+            traceId: err.traceId,
+          });
+        }
+        throw err;
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import rendio
+    from rendio import (
+        AuthenticationError,
+        ValidationError,
+        QuotaExceededError,
+        RateLimitError,
+        PlanLimitError,
+        TimeoutError,
+        RenderFailedError,
+        RendioError,
+    )
+    import time
+
+    client = rendio.Rendio()
+
+    def render(html: str) -> str:
+        try:
+            pdf = client.pdfs.create(html=html)
+            return pdf.url
+        except AuthenticationError:
+            raise RuntimeError("Rendio key invalid — check RENDIO_API_KEY")
+        except ValidationError as err:
+            raise RuntimeError(f"Bad request: {err.code}")
+        except PlanLimitError as err:
+            raise RuntimeError(f'Feature "{err.feature}" requires a higher plan')
+        except QuotaExceededError:
+            raise RuntimeError("Rendio quota exhausted — pausing queue")
+        except RateLimitError as err:
+            if err.retry_after:
+                time.sleep(err.retry_after)
+                return render(html)
+            raise
+        except RenderFailedError as err:
+            raise RuntimeError(f"Render failed: {err}")
+        except TimeoutError:
+            raise RuntimeError("Render timed out — simplify the template")
+        except RendioError as err:
+            print("Rendio error", {"code": err.code, "request_id": err.request_id, "trace_id": err.trace_id})
+            raise
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    func render(ctx context.Context, html string) (string, error) {
+        pdf, err := client.Pdfs.Create(ctx, rendio.PdfCreateParams{HTML: html})
+        if err == nil {
+            return pdf.URL, nil
+        }
+
+        var auth *rendio.AuthenticationError
+        if errors.As(err, &auth) {
+            return "", fmt.Errorf("rendio key invalid: check RENDIO_API_KEY")
+        }
+        var val *rendio.ValidationError
+        if errors.As(err, &val) {
+            return "", fmt.Errorf("bad request: %s", val.Code)
+        }
+        var plan *rendio.PlanLimitError
+        if errors.As(err, &plan) {
+            return "", fmt.Errorf("feature %q requires a higher plan", plan.Feature)
+        }
+        var quota *rendio.QuotaExceededError
+        if errors.As(err, &quota) {
+            return "", fmt.Errorf("rendio quota exhausted")
+        }
+        var rl *rendio.RateLimitError
+        if errors.As(err, &rl) && rl.RetryAfter > 0 {
+            time.Sleep(time.Duration(rl.RetryAfter) * time.Second)
+            return render(ctx, html)
+        }
+        return "", err
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Log correlation
+
+When OpenTelemetry is configured in your application, every thrown
+`RendioError` carries the W3C `traceId` and `spanId` of the active span. Log
+them alongside `requestId` so support can look at both your trace and the
+server-side record:
+
+```ts
+if (err instanceof RendioError) {
+  logger.error(
+    {
+      code: err.code,
+      requestId: err.requestId,
+      traceId: err.traceId,
+      spanId: err.spanId,
+    },
+    "Rendio render failed"
+  );
+}
+```
+
+See [OpenTelemetry](/sdks/opentelemetry) for end-to-end setup.
+
+## Why not just catch `RendioError`?
+
+You can — and it's fine for a catch-all logger. But three error classes
+encode **policy decisions** that shouldn't fall through:
+
+1. `QuotaExceededError` — retrying won't help; pausing the queue and paging
+   a human is almost always correct.
+2. `PlanLimitError` — carries `feature`; the UX-correct response depends
+   on *which* feature was gated.
+3. `RateLimitError` — carries `retryAfter`; ignoring it and retrying
+   immediately makes the problem worse.
+
+Branch on these three; catch the rest with `RendioError`.

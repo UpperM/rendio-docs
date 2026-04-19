@@ -1,0 +1,165 @@
+---
+title: "Retries & timeouts"
+description: "How the SDKs decide to retry, the backoff formula, and how to override it."
+---
+
+Every Rendio SDK retries transient failures automatically. Defaults are tuned
+for production; configuration is available when you need it.
+
+## Defaults
+
+| Setting | Value |
+|---|---|
+| `maxRetries` | `2` (→ up to 3 total attempts) |
+| `timeout` per attempt | `30 000` ms |
+| Base backoff delay | `500` ms |
+| Max backoff delay (cap) | `5000` ms |
+| Jitter | `random(0, 1000)` ms added per attempt |
+| `Retry-After` header | Always honored when present |
+
+## What gets retried
+
+| Condition | Retryable |
+|---|---|
+| HTTP 500 `internal_error` | ✅ |
+| HTTP 502 (non URL-specific) | ✅ |
+| HTTP 503 `server_busy` | ✅ |
+| HTTP 504 (non URL-specific) | ✅ |
+| HTTP 429 `rate_limit_exceeded` | ✅ (waits `Retry-After`) |
+| HTTP 429 `concurrent_limit_exceeded` | ✅ (waits `Retry-After`) |
+| Network failure (DNS, ECONNRESET) | ✅ |
+| Client-side `TimeoutError` | ✅ |
+| HTTP 400, 401, 402, 404, 409, 413 | ❌ |
+| HTTP 408 `render_timeout` | ❌ |
+| HTTP 429 `quota_exceeded` | ❌ |
+| HTTP 500 `render_failed` | ❌ |
+| HTTP 502/504 `url_unreachable` / `url_http_error` / `url_timeout` | ❌ |
+
+The non-retryable cases indicate a permanent condition for the current
+request — retrying won't change the outcome. Fix the input, the plan, or the
+target URL first.
+
+## Backoff formula
+
+```
+delay = min(baseDelay × 2^attempt + jitter, maxDelay)
+  where baseDelay = 500ms, maxDelay = 5000ms, jitter = random(0, 1000ms)
+```
+
+| Attempt | Min delay | Max delay |
+|---|---|---|
+| 1st retry (`attempt=0`) | 500 ms | 1500 ms |
+| 2nd retry (`attempt=1`) | 1000 ms | 2000 ms |
+| 3rd retry (`attempt=2`) | 2000 ms | 3000 ms |
+| 4th retry (`attempt=3`) | 4000 ms | 5000 ms (capped) |
+
+When the API returns `Retry-After: <n>`, the SDK waits exactly `n` seconds
+instead of the computed backoff. This applies to `rate_limit_exceeded`,
+`concurrent_limit_exceeded`, and `server_busy`.
+
+## Configure
+
+<Tabs>
+  <Tab title="Node">
+    ```ts
+    // No retries, 5-second timeout — typical in tests
+    new Rendio("rk_test_...", { maxRetries: 0, timeout: 5_000 });
+
+    // High-reliability batch job — more retries, longer timeout
+    new Rendio("rk_live_...", { maxRetries: 5, timeout: 60_000 });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    rendio.Rendio(max_retries=0, timeout=5.0)
+    rendio.Rendio(max_retries=5, timeout=60.0)
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    client, _ := rendio.NewClient(
+        rendio.WithMaxRetries(5),
+        rendio.WithTimeout(60 * time.Second),
+    )
+    ```
+  </Tab>
+</Tabs>
+
+## Timeout scope
+
+The timeout applies **per attempt**, not per operation. With the defaults
+(`timeout: 30s`, `maxRetries: 2`) the worst-case wall time is:
+
+```
+3 × 30s  (attempt timeouts)
+ + 3 × 5s (maximum backoff between attempts)
+ ≈ 105s
+```
+
+If you need a hard operation-level deadline, wrap the call in an
+`AbortController` (Node) / context with cancel (Go) / task (Python) and
+cancel on timeout.
+
+<Tabs>
+  <Tab title="Node">
+    ```ts
+    const ac = new AbortController();
+    const deadline = setTimeout(() => ac.abort(), 45_000);
+
+    try {
+      const pdf = await rendio.pdfs.create(
+        { html },
+        { signal: ac.signal }
+      );
+    } finally {
+      clearTimeout(deadline);
+    }
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    ctx, cancel := context.WithTimeout(ctx, 45*time.Second)
+    defer cancel()
+    pdf, err := client.Pdfs.Create(ctx, params)
+    ```
+  </Tab>
+</Tabs>
+
+## Retries and idempotency
+
+POST retries can double-charge quota if the server processes the same request
+twice. The SDKs defend against this automatically: when `maxRetries > 0` and
+no `Idempotency-Key` is provided, the SDK **generates one before the first
+attempt** and reuses it across retries. See [Idempotency](/sdks/idempotency).
+
+## Debugging retries
+
+Every retried request carries an `X-Rendio-Retry-Count` header (0-indexed:
+`0` on the first attempt, `1` on the first retry, etc.). When OpenTelemetry
+is enabled, each attempt is its own `rendio.pdfs.create.attempt` child span
+with `http.retry_count` and `http.response.status_code` attributes.
+
+```
+[rendio.pdfs.create]
+  ├── [rendio.pdfs.create.attempt] http.retry_count=0 → 503
+  ├── [rendio.pdfs.create.attempt] http.retry_count=1 → 503
+  └── [rendio.pdfs.create.attempt] http.retry_count=2 → 200 ✓
+```
+
+## Disabling retries
+
+Set `maxRetries: 0` when you want to implement your own retry policy, or in
+tests to avoid backoff delays.
+
+```ts
+const rendio = new Rendio("rk_test_...", { maxRetries: 0 });
+
+try {
+  await rendio.pdfs.create({ html });
+} catch (err) {
+  if (err instanceof RateLimitError && err.retryAfter !== null) {
+    await sleep(err.retryAfter * 1000);
+    await rendio.pdfs.create({ html });
+  }
+}
+```

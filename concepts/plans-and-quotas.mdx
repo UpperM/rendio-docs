@@ -1,0 +1,143 @@
+---
+title: "Plans & quotas"
+description: "Monthly quotas, rate limits, page caps, feature gates, and retention."
+---
+
+Rendio has three plans. All share the same core rendering features; plans
+differ by quota, concurrency, feature gates, and retention.
+
+## Plan comparison
+
+| | Free | Starter | Pro |
+|---|---|---|---|
+| **Price** (EUR, excl. VAT) | €0 | €19/mo | €49/mo |
+| **PDFs per month** | 100 | 2,000 | 10,000 |
+| **Overage** | Hard cap | €0.01/render (opt-in) | €0.01/render (opt-in) |
+| **API rate limit** | 10 req/min | 60 req/min | 300 req/min |
+| **Concurrent renders** | 1 | 5 | 10 |
+| **Max pages per PDF** | 10 | Unlimited | Unlimited |
+| **External resources** (remote images/fonts/CSS) | ❌ | ✅ | ✅ |
+| **URL → PDF** (`source` param) | ❌ | ✅ | ✅ |
+| **Custom JavaScript** (`javascript`) | ❌ | ✅ | ✅ |
+| **Tagged (accessible) PDF** (`tagged`) | ❌ | ✅ | ✅ |
+| **Webhooks** | ❌ | ❌ | ✅ |
+| **Custom CDN domain** | ❌ | ❌ | ✅ |
+| **OTEL export** | ❌ | ❌ | ✅ |
+| **Preview renders** (no API key) | 50 / day | Unlimited | Unlimited |
+| **PDF retention** | 24 hours | 30 days | 30 days |
+| **Trace retention** | 1 day | 7 days | 90 days |
+| **Support** | GitHub issues | Email (48h) | Priority (24h) |
+
+<Note>
+  Prices are in **EUR excluding VAT**. Paddle handles VAT at checkout based
+  on your billing location.
+</Note>
+
+## Monthly quota
+
+A "render" for quota purposes is any successful call to `POST /v1/render`
+(HTTP 2xx). Errors (4xx/5xx) do **not** consume quota.
+
+| Plan | Behavior at quota limit |
+|---|---|
+| Free | Hard stop. API returns `429 quota_exceeded`. |
+| Starter / Pro | Hard stop by default. Enable a spending cap in the dashboard to allow overage at €0.01/render up to your configured cap. |
+
+Overage is opt-in and capped — you set the maximum EUR amount; renders stop
+when the cap is hit (`quota_exceeded` with the `spending_cap_reached` reason
+internally). Overage is billed at the end of each cycle.
+
+## API rate limits
+
+Rate limits are per API key, measured in a 60-second rolling window:
+
+| Plan | Rate limit |
+|---|---|
+| Preview (no auth) | 50 / day per user |
+| Free | 10 / min |
+| Starter | 60 / min |
+| Pro | 300 / min |
+
+When you hit the limit you get `429 rate_limit_exceeded` with a
+`Retry-After` header. The SDKs automatically honor it.
+
+## Concurrent renders
+
+Independent of the per-minute rate limit, there's a cap on how many renders
+can be **in flight simultaneously** for a given account:
+
+| Plan | Concurrent |
+|---|---|
+| Free | 1 |
+| Starter | 5 |
+| Pro | 10 |
+
+Exceeding it returns `429 concurrent_limit_exceeded` with `Retry-After: 5`.
+Useful to think about when you fan out batch work — a 20-invoice batch on
+Starter will effectively serialize 4 renders deep.
+
+## Page limits
+
+| Plan | Max pages per PDF |
+|---|---|
+| Free | 10 |
+| Starter | Unlimited |
+| Pro | Unlimited |
+
+Exceeding returns `402 plan_limit` with `error.feature: "page_count"`.
+
+## Feature gates
+
+| Feature | Free | Starter | Pro | Error on Free |
+|---|---|---|---|---|
+| `source` (URL → PDF) | ❌ | ✅ | ✅ | `plan_limit`, `feature: "url_to_pdf"` |
+| `javascript` (custom JS) | ❌ | ✅ | ✅ | `plan_limit`, `feature: "custom_js_execution"` |
+| `tagged: true` (accessible) | ❌ | ✅ | ✅ | `plan_limit`, `feature: "tagged_pdf"` |
+| External resources in HTML/CSS | ❌ | ✅ | ✅ | `plan_limit`, `feature: "external_resources"` |
+
+On Free, you need everything inline: base64-encoded images, inline CSS, no
+`@import`, no `src="https://..."`.
+
+## Retention
+
+Rendered files live on the CDN for the retention window, then are deleted
+and return `404`:
+
+| Plan | PDF / screenshot retention |
+|---|---|
+| Free | 24 hours |
+| Starter | 30 days |
+| Pro | 30 days |
+
+Use `response: "buffer"` (raw bytes) when you don't want to rely on
+Rendio's storage — the file is never stored on the CDN and retention
+doesn't apply.
+
+## Shared limits
+
+These apply to every plan:
+
+| Limit | Value |
+|---|---|
+| Max HTML size | 1 MB |
+| Max CSS size | 1 MB |
+| Max `javascript` size | 100 KB |
+| Max `headerTemplate` / `footerTemplate` | 1 MB each |
+| Render timeout | 30 s |
+| `javascript` execution timeout | 5 s |
+| `waitForSelector` timeout | 10 s |
+| URL-mode `navTimeoutMs` cap | 30 s |
+
+## Upgrading and downgrading
+
+- **Upgrade** — applies immediately. New quota and features available on
+  the next request.
+- **Downgrade** — takes effect at the end of the current billing period. You
+  keep paid features until then.
+
+Both are self-serve in [dashboard settings](https://rendio.dev/dashboard/settings).
+
+## Enterprise
+
+Higher volumes, custom retention, dedicated support, invoice billing —
+<hello@rendio.dev>.

@@ -1,0 +1,83 @@
+---
+title: "API Reference"
+description: "REST API for HTML-to-PDF rendering. JSON in, binary or URL out."
+---
+
+The Rendio API is a small HTTP surface — three endpoints, JSON in, binary or
+URL out. All endpoints live under `https://api.rendio.dev`.
+
+## Base URL
+
+```
+https://api.rendio.dev
+```
+
+## Endpoints
+
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | [`/v1/render`](/api-reference/render) | Render HTML or a URL to PDF/PNG/JPEG |
+| `GET` | `/v1/files/{id}` | Fetch metadata for a previously rendered file |
+| `GET` | `/health` | Liveness probe |
+
+## Authentication
+
+Bearer token. See [Authentication](/authentication).
+
+```bash
+Authorization: Bearer rk_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+## Request & response headers
+
+Every response carries these headers:
+
+| Header | Meaning |
+|---|---|
+| `X-Rendio-Request-Id` | Unique request ID. Include it when you open a support ticket. |
+| `X-RateLimit-Limit` | Your plan's monthly render quota. |
+| `X-RateLimit-Remaining` | Renders remaining in the current billing period. |
+| `X-RateLimit-Reset` | Unix seconds when the quota resets. |
+
+On successful renders, additionally:
+
+| Header | Meaning |
+|---|---|
+| `X-Chromium-Version` | Exact Chromium version used. |
+| `X-Render-Time-Ms` | Server-side render duration. |
+| `Server-Timing` | Phase breakdown (`pool`, `render`, `upload`). |
+
+## Idempotency
+
+`POST /v1/render` supports the `Idempotency-Key` header for URL-mode requests.
+Send the same key with the same body within 24 hours and the API returns the
+cached response (`X-Idempotent-Replay: true`) instead of re-rendering.
+
+- Keys must match `[A-Za-z0-9_-]{1,255}`.
+- Replaying with a **different body** returns `409 idempotency_conflict`.
+- Keys are scoped per API key — different keys can reuse the same idempotency
+  string without collision.
+
+## Error envelope
+
+Every error returns the same JSON shape:
+
+```json
+{
+  "error": {
+    "code": "quota_exceeded",
+    "message": "Monthly quota exceeded. Upgrade your plan at https://rendio.dev/pricing"
+  }
+}
+```
+
+`error.feature` is additionally present on `plan_limit` errors, naming the
+gated feature (e.g. `"url_to_pdf"`, `"tagged_pdf"`, `"page_count"`).
+
+See the full list at [Error codes](/api-reference/errors).
+
+## Versioning
+
+The API is versioned under the `/v1/` path prefix. Breaking changes ship
+behind a new prefix (`/v2/`); bugfixes and backward-compatible additions ship
+in `/v1/`. The `/health` endpoint is unversioned.

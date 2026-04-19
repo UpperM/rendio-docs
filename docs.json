@@ -1,0 +1,98 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "maple",
+  "name": "Rendio",
+  "description": "HTML-to-PDF API for developers. Send HTML, get a PDF URL back.",
+  "colors": {
+    "primary": "#0F172A",
+    "light": "#38BDF8",
+    "dark": "#0EA5E9"
+  },
+  "favicon": "/favicon.svg",
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg"
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "authentication"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/how-it-works",
+              "concepts/plans-and-quotas"
+            ]
+          },
+          {
+            "group": "SDKs",
+            "pages": [
+              "sdks/overview",
+              "sdks/error-handling",
+              "sdks/retries-and-timeouts",
+              "sdks/idempotency",
+              "sdks/opentelemetry"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api-reference/introduction",
+              "api-reference/errors"
+            ]
+          },
+          {
+            "group": "Endpoints",
+            "pages": [
+              "api-reference/render",
+              "api-reference/files",
+              "api-reference/health"
+            ]
+          }
+        ]
+      }
+    ],
+    "global": {
+      "anchors": [
+        {
+          "anchor": "Dashboard",
+          "href": "https://rendio.dev/dashboard",
+          "icon": "chart-line"
+        },
+        {
+          "anchor": "Status",
+          "href": "https://status.rendio.dev",
+          "icon": "signal-stream"
+        },
+        {
+          "anchor": "GitHub",
+          "href": "https://github.com/rendio",
+          "icon": "github"
+        }
+      ]
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/rendio",
+      "x": "https://x.com/rendio_dev"
+    }
+  },
+  "contextual": {
+    "options": ["copy", "view", "chatgpt", "claude"]
+  }
+}

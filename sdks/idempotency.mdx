@@ -1,0 +1,118 @@
+---
+title: "Idempotency"
+description: "Safe POST retries with Idempotency-Key."
+---
+
+`POST /v1/render` supports `Idempotency-Key` for URL-mode requests. Send the
+same key with the same body within 24 hours and the API returns the cached
+response instead of re-rendering — protecting you from double-billing on
+retries.
+
+## Why it matters
+
+If the network glitches between your client and Rendio after the render
+completes but before the response reaches you, a naïve retry renders the PDF
+*again*, charging you twice. `Idempotency-Key` solves this: the server
+stores the first response and replays it for every subsequent request that
+shares the key.
+
+## SDK behavior (automatic)
+
+When `maxRetries > 0` (the default), the SDKs generate an idempotency key
+before the **first** attempt and reuse it across retries. You don't need to
+do anything — safe retries work out of the box.
+
+```ts
+// maxRetries: 2 (default) → SDK generates an Idempotency-Key on first POST
+// → same key is reused on attempt 2 and 3
+// → if the server already succeeded, you get the cached response
+const pdf = await rendio.pdfs.create({ html });
+```
+
+## Supplying your own key
+
+For business-level idempotency (e.g. "one invoice PDF per `invoice.id`"),
+pass an explicit key:
+
+<Tabs>
+  <Tab title="Node">
+    ```ts
+    const pdf = await rendio.pdfs.create(
+      { html: renderInvoice(invoice) },
+      { idempotencyKey: `invoice-${invoice.id}-v${invoice.version}` }
+    );
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    pdf = client.pdfs.create(
+        html=render_invoice(invoice),
+        idempotency_key=f"invoice-{invoice.id}-v{invoice.version}",
+    )
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    pdf, err := client.Pdfs.Create(ctx, params,
+        rendio.WithIdempotencyKey(fmt.Sprintf("invoice-%s-v%d", invoice.ID, invoice.Version)),
+    )
+    ```
+  </Tab>
+  <Tab title="curl">
+    ```bash
+    curl https://api.rendio.dev/v1/render \
+      -H "Authorization: Bearer $RENDIO_API_KEY" \
+      -H "Idempotency-Key: invoice-8F27-v3" \
+      -H "Content-Type: application/json" \
+      -d '{"html":"...","pageSize":"A4"}'
+    ```
+  </Tab>
+</Tabs>
+
+## Scope and storage
+
+- Keys must match `[A-Za-z0-9_-]{1,255}`.
+- Keys are **scoped per API key** — different API keys can reuse the same
+  string without collision.
+- Responses are cached for **24 hours** from the first successful render.
+- Only `response: "url"` requests support idempotency. Buffer-mode requests
+  return bytes directly and are not cached.
+- Preview-mode requests (`preview: true`) do not support idempotency.
+
+## Replays
+
+A successful replay returns the same JSON body as the original plus the
+`X-Idempotent-Replay: true` header. Request ID (`X-Rendio-Request-Id`) is
+fresh per request — only the response body and headers are cached.
+
+## Error cases
+
+| Scenario | HTTP | Code |
+|---|---|---|
+| Same key, same body → cached replay | 200 | — (body matches original) |
+| Same key, **different** body | 409 | `idempotency_conflict` |
+| Same key, prior request still in flight | 409 | `idempotency_conflict` |
+| Key violates format (`[A-Za-z0-9_-]{1,255}`) | 400 | `validation_error` |
+
+**"Same body"** is determined by hashing the exact bytes of the request
+body. If your client serializes JSON with different key ordering between
+retries, the hash differs and you get `idempotency_conflict`. The official
+SDKs keep the body stable across retries, so this only bites when you
+construct requests manually.
+
+## Choosing keys
+
+- **SDK-auto keys** — for retries of the same logical request. Default.
+- **Business keys** — for "one PDF per business event" semantics. Examples:
+  `invoice-${id}-v${version}`, `receipt-${orderId}`, `report-${uuid}`.
+  Include a version suffix if the template can change.
+- **Random UUIDs** — simplest option when you just need *a* stable key per
+  attempt. `crypto.randomUUID()` (Node 19+), `uuid.uuid4()` (Python),
+  `uuid.NewString()` (Go).
+
+## What to avoid
+
+- **Time-based keys** (`Date.now()`) — change on retry, defeating the whole
+  point.
+- **Reusing keys across different business intents** — `invoice-${id}`
+  reused for two different invoice versions will return the first one.

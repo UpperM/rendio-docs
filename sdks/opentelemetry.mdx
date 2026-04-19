@@ -1,0 +1,211 @@
+---
+title: "OpenTelemetry"
+description: "Zero-config distributed tracing. Rendio spans appear as children of your current trace."
+---
+
+The Rendio SDKs ship with built-in OpenTelemetry instrumentation. If you have
+OTEL configured in your application, Rendio spans appear automatically in
+your APM as children of your current trace. No extra setup on your end.
+
+## How it works
+
+OTEL is loaded as an **optional peer dependency**. If no `TracerProvider` is
+registered, every instrumentation call is a zero-allocation no-op — no
+overhead, no console noise. When your app registers a provider, the SDK:
+
+1. Opens a `rendio.pdfs.create` span for each API call.
+2. Opens a `rendio.pdfs.create.attempt` child span per HTTP attempt (one per
+   retry).
+3. Injects `traceparent` into the outbound request, so the Rendio gateway
+   and worker spans link into your trace.
+4. Populates `traceId` and `spanId` on every thrown `RendioError` for
+   log-to-trace correlation.
+
+## Verify it works
+
+This self-contained Node script uses an in-memory exporter to print the span
+tree. Run it to confirm the SDK emits spans before wiring a real backend.
+
+```ts
+import { NodeSDK } from "@opentelemetry/sdk-node";
+import {
+  InMemorySpanExporter,
+  SimpleSpanProcessor,
+} from "@opentelemetry/sdk-trace-base";
+import Rendio from "rendio";
+
+const exporter = new InMemorySpanExporter();
+const sdk = new NodeSDK({
+  spanProcessors: [new SimpleSpanProcessor(exporter)],
+});
+sdk.start();
+
+const rendio = new Rendio();
+try {
+  await rendio.pdfs.create({ html: "<h1>Hello</h1>" });
+} catch {
+  // ignore — we only care about spans
+}
+await sdk.shutdown();
+
+for (const span of exporter.getFinishedSpans()) {
+  console.log(`[${span.name}]`, span.attributes);
+}
+```
+
+Expected:
+
+```
+[rendio.pdfs.create.attempt]  http.retry_count=0  http.response.status_code=200
+[rendio.pdfs.create]          rendio.mode=html    rendio.pages=1   rendio.size_bytes=14832
+```
+
+## Backends
+
+### Honeycomb
+
+```ts
+import { NodeSDK } from "@opentelemetry/sdk-node";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
+import { Resource } from "@opentelemetry/resources";
+
+new NodeSDK({
+  resource: new Resource({ "service.name": "my-service" }),
+  traceExporter: new OTLPTraceExporter({
+    url: "https://api.honeycomb.io/v1/traces",
+    headers: { "x-honeycomb-team": process.env.HONEYCOMB_API_KEY! },
+  }),
+}).start();
+```
+
+### Datadog (via OTLP)
+
+Agent OTLP receiver must be enabled
+(`DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT`).
+
+```ts
+new NodeSDK({
+  resource: new Resource({
+    "service.name": "my-service",
+    "dd.env": process.env.DD_ENV ?? "production",
+  }),
+  traceExporter: new OTLPTraceExporter({
+    url: `http://${process.env.DD_AGENT_HOST ?? "localhost"}:4318/v1/traces`,
+  }),
+}).start();
+```
+
+### Jaeger (local dev)
+
+```bash
+docker run --rm -p 16686:16686 -p 4318:4318 jaegertracing/all-in-one:latest
+```
+
+```ts
+new NodeSDK({
+  resource: new Resource({ "service.name": "my-service" }),
+  traceExporter: new OTLPTraceExporter({ url: "http://localhost:4318/v1/traces" }),
+}).start();
+```
+
+Open <http://localhost:16686>, select `my-service`, find
+`rendio.pdfs.create`.
+
+## Attributes
+
+### `rendio.pdfs.create` (SDK span — one per user-level call)
+
+| Attribute | Type | When set |
+|---|---|---|
+| `rendio.mode` | `"html" \| "url" \| "template"` | Always |
+| `rendio.output` | `"pdf" \| "png" \| "jpeg"` | Always |
+| `rendio.sdk.version` | string | Always |
+| `rendio.pages` | int | On success |
+| `rendio.size_bytes` | int | On success |
+| `rendio.pool_hit` | bool | On success |
+| `rendio.chromium_version` | string | On success |
+| `http.response.status_code` | int | On response |
+| `error.type` | string | On error |
+
+### `rendio.pdfs.create.attempt` (SDK span — one per HTTP attempt)
+
+| Attribute | Type | When set |
+|---|---|---|
+| `http.retry_count` | int | Always (0-indexed) |
+| `http.response.status_code` | int | On response |
+
+### Gateway spans (server-side, visible when `traceparent` is injected)
+
+| Attribute | Value | Notes |
+|---|---|---|
+| `rendio.tier` | `"free" \| "starter" \| "pro"` | |
+| `rendio.user_id` | UUID | |
+| `rendio.api_key_id` | UUID | |
+| `rendio.internal` | `true` | Only emitted when `true` (low-cardinality convention) |
+| `rendio.coldstart` | `true` | Only emitted when `true` |
+
+## Opt-out
+
+Pass `telemetry: false` for a complete hard bypass — no spans, no metrics,
+no `traceparent` header. Useful for batch jobs where you don't want Rendio
+traffic in your trace data.
+
+```ts
+const rendio = new Rendio(process.env.RENDIO_API_KEY!, { telemetry: false });
+```
+
+## Log correlation (Pino example)
+
+```ts
+import pino from "pino";
+import Rendio, { RendioError } from "rendio";
+
+const logger = pino();
+const rendio = new Rendio();
+
+try {
+  const pdf = await rendio.pdfs.create({ html: "<h1>Invoice</h1>" });
+  logger.info({ pdfUrl: pdf.url }, "PDF rendered");
+} catch (err) {
+  if (err instanceof RendioError) {
+    logger.error(
+      { code: err.code, requestId: err.requestId, traceId: err.traceId, spanId: err.spanId },
+      "Rendio render failed"
+    );
+  }
+}
+```
+
+`traceId` and `spanId` are `undefined` when no active OTEL span exists
+(e.g. `telemetry: false`, or OTEL not configured).
+
+## Known issues
+
+### Double-instrumentation with `@opentelemetry/instrumentation-undici`
+
+If your stack auto-instruments outgoing `undici` / `fetch` calls, the HTTP
+request to Rendio gets instrumented **twice** — once by undici's
+auto-instrumentation, once by Rendio's per-attempt child span. Filter out
+Rendio hostnames in the undici config:
+
+```ts
+import { UndiciInstrumentation } from "@opentelemetry/instrumentation-undici";
+
+new UndiciInstrumentation({
+  ignoreOutgoingRequestHook(req) {
+    return req.origin?.includes("api.rendio.dev") ?? false;
+  },
+});
+```
+
+### Cloudflare Workers
+
+Enable `nodejs_compat` in `wrangler.toml` — OTEL's `AsyncLocalStorage`-based
+context propagation needs it.
+
+```toml
+compatibility_flags = ["nodejs_compat"]
+```
+
+Without it, `rendio.pdfs.create` still works — only the trace-tree linking
+is affected.

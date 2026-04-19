@@ -1,0 +1,108 @@
+---
+title: "How Rendio works"
+description: "The rendering pipeline, from HTTP request to CDN URL."
+---
+
+Rendio converts HTML to PDF (or PNG/JPEG) using a pool of headless Chromium
+browsers. This page walks through the pipeline — useful when you're
+debugging a render, choosing between URL and buffer modes, or picking the
+right `waitUntil` value.
+
+## The pipeline
+
+```
+  ┌─────────────┐    ┌──────────────┐    ┌──────────────┐    ┌─────────────┐
+  │  Your app   │───▶│   Gateway    │───▶│   Worker     │───▶│  CDN / You  │
+  │             │    │              │    │              │    │             │
+  │ HTML + CSS  │    │  Validate    │    │  Chromium    │    │  PDF bytes  │
+  │  + data     │    │  Auth        │    │  Render      │    │  or URL     │
+  │             │    │  Quota       │    │  Bytes out   │    │             │
+  └─────────────┘    └──────────────┘    └──────────────┘    └─────────────┘
+```
+
+### 1 — Your request hits the gateway
+
+`POST /v1/render` is received by the gateway. In this single step it:
+
+- Parses and validates the body against the Zod schema (fails fast with
+  `validation_error` / `html_too_large`).
+- Authenticates the bearer token (`invalid_api_key` on failure).
+- Checks your plan quota and rate limits
+  (`quota_exceeded`, `rate_limit_exceeded`, `concurrent_limit_exceeded`).
+- Applies feature gates (`plan_limit` for `url_to_pdf`,
+  `custom_js_execution`, `tagged_pdf`, `external_resources`).
+- If `Idempotency-Key` is present and this key + body hash have been seen in
+  the last 24h, serves the cached response without reaching the worker.
+- Otherwise forwards a worker-shaped payload to the render pool.
+
+### 2 — The worker renders
+
+A warm Chromium instance from the pool:
+
+1. Compiles Handlebars templates (when `data` is non-empty).
+2. Creates a fresh browser context (no persistent state across renders).
+3. Loads HTML + CSS (or navigates to `source` in URL mode).
+4. Waits for the page to be ready per `waitUntil` (see below).
+5. Optionally runs your `javascript` payload (5s timeout, `customJsExecution` gated).
+6. Optionally waits for `waitForSelector` (10s timeout).
+7. Generates the PDF or screenshot with the requested layout options.
+
+Most renders complete in under 100&nbsp;ms when the pool is warm. Server-side
+timeout is 30 seconds — beyond that you get `render_timeout`.
+
+### 3 — Output delivery
+
+Two response modes, chosen via `response`:
+
+- **`response: "url"` (default)** — the PDF is uploaded to object storage
+  behind `cdn.rendio.dev`. You receive a JSON body with the CDN URL, size,
+  page count, and `expiresAt`. The file is retained for the plan's retention
+  window.
+- **`response: "buffer"`** — raw bytes stream back in the response body.
+  No file is stored on Rendio's CDN. No storage quota consumed.
+
+## `waitUntil` — when is the page "ready"?
+
+The default is `domcontentloaded`, which waits for the DOM tree to be parsed
+but not for images, fonts, or other subresources. Choose based on what your
+HTML needs:
+
+| Value | Waits for | Use when |
+|---|---|---|
+| `commit` | Navigation committed | Fully self-contained HTML, no external refs |
+| `domcontentloaded` | DOM parsed (default) | HTML with inline CSS, base64 images |
+| `load` | All resources loaded | HTML references remote images, fonts, stylesheets |
+| `networkidle` | No network for 500ms | SPAs, long-polling, lazy-loaded assets |
+
+Picking a stricter value (`load`, `networkidle`) over a looser one adds
+latency but prevents blank images or unstyled text in your output.
+
+## Output formats
+
+| `output` | Content-Type | Notes |
+|---|---|---|
+| `pdf` (default) | `application/pdf` | Multi-page documents |
+| `png` | `image/png` | Full-page screenshot |
+| `jpeg` | `image/jpeg` | Full-page screenshot, smaller than PNG |
+
+## Preview mode
+
+`preview: true` adds a development watermark, is rate-limited to
+50 renders/day per user on Free (unlimited on paid plans), and must use
+`response: "buffer"`. The VSCode extension uses it under the hood for live
+preview.
+
+## Isolation and security
+
+- Each render runs in a fresh browser context. No shared state.
+- URL mode blocks requests to `localhost`, `127.0.0.1`, and RFC1918 ranges
+  (SSRF policy). Hits return `url_blocked`.
+- External resources in HTML/CSS are loaded, but with a hard timeout so a
+  slow remote font can't wedge your render.
+- Your `javascript` runs inside the page with a 5-second execution cap.
+
+<Warning>
+  Do not render untrusted user HTML without sanitization. Chromium is
+  sandboxed, but malicious HTML can still attempt to fetch external
+  resources, inflate render time, or leak data via side channels.
+</Warning>

@@ -1,0 +1,157 @@
+---
+title: "Quickstart"
+description: "Render your first PDF in under 2 minutes."
+---
+
+<Steps>
+  <Step title="Get an API key">
+    Sign in at [rendio.dev/dashboard](https://rendio.dev/dashboard) and create
+    a key under **API Keys**. Keys start with `rk_live_` and are shown **once**.
+
+    ```bash
+    export RENDIO_API_KEY=rk_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+    ```
+
+    <Warning>
+      Treat `rk_live_*` keys like passwords. Never commit them and never ship
+      them to a browser bundle. See [API key security](/authentication#security-best-practices).
+    </Warning>
+  </Step>
+
+  <Step title="Install the SDK">
+    <Tabs>
+      <Tab title="Node">
+        ```bash
+        npm install rendio
+        ```
+      </Tab>
+      <Tab title="Python">
+        ```bash
+        pip install rendio
+        ```
+      </Tab>
+      <Tab title="Go">
+        ```bash
+        go get github.com/rendio/rendio-go
+        ```
+      </Tab>
+      <Tab title="curl">
+        No install needed.
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Render a PDF">
+    <Tabs>
+      <Tab title="Node">
+        ```ts
+        import Rendio, { RendioError } from "rendio";
+
+        const rendio = new Rendio(); // reads RENDIO_API_KEY
+
+        try {
+          const pdf = await rendio.pdfs.create({
+            html: "<h1>Hello from Rendio</h1>",
+            pageSize: "A4",
+          });
+          console.log(pdf.url);   // https://cdn.rendio.dev/f/rd_...
+          console.log(pdf.pages); // 1
+        } catch (err) {
+          if (err instanceof RendioError) {
+            console.error(`[${err.code}] ${err.message} (request ${err.requestId})`);
+          }
+          throw err;
+        }
+        ```
+      </Tab>
+      <Tab title="Python">
+        ```python
+        import rendio
+        from rendio import RendioError
+
+        client = rendio.Rendio()  # reads RENDIO_API_KEY
+
+        try:
+            pdf = client.pdfs.create(html="<h1>Hello from Rendio</h1>", page_size="A4")
+            print(pdf.url, pdf.pages)
+        except RendioError as err:
+            print(f"[{err.code}] {err.message} (request {err.request_id})")
+            raise
+        ```
+      </Tab>
+      <Tab title="Go">
+        ```go
+        client, err := rendio.NewClient()
+        if err != nil {
+            log.Fatal(err)
+        }
+
+        pdf, err := client.Pdfs.Create(ctx, rendio.PdfCreateParams{
+            HTML:     "<h1>Hello from Rendio</h1>",
+            PageSize: rendio.PageSizeA4,
+        })
+        if err != nil {
+            var rErr *rendio.Error
+            if errors.As(err, &rErr) {
+                log.Printf("[%s] %s (request %s)", rErr.Code, rErr.Message, rErr.RequestID)
+            }
+            return err
+        }
+        fmt.Println(pdf.URL, pdf.Pages)
+        ```
+      </Tab>
+      <Tab title="curl">
+        ```bash
+        curl https://api.rendio.dev/v1/render \
+          -H "Authorization: Bearer $RENDIO_API_KEY" \
+          -H "Content-Type: application/json" \
+          -d '{"html":"<h1>Hello from Rendio</h1>","pageSize":"A4"}'
+        ```
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Open the PDF">
+    The `url` in the response is a CDN link. On the Free plan, PDFs are
+    retained for **24 hours**; on paid plans, for **30 days**. Past that, the
+    link returns `404`.
+  </Step>
+</Steps>
+
+## Dynamic data with Handlebars
+
+Rendio uses [Handlebars](https://handlebarsjs.com/) for templating. Pass
+dynamic values through `data` and reference them with `{{variable}}`:
+
+```ts
+const pdf = await rendio.pdfs.create({
+  html: `
+    <h1>Invoice #{{invoice.number}}</h1>
+    <p>Billed to: {{client.name}}</p>
+    <ul>
+      {{#each items}}
+      <li>{{description}} — {{price}}</li>
+      {{/each}}
+    </ul>
+  `,
+  data: {
+    invoice: { number: "2026-042" },
+    client: { name: "Acme Corp" },
+    items: [
+      { description: "Web development", price: "$4,000" },
+      { description: "Design review", price: "$500" },
+    ],
+  },
+});
+```
+
+## What to read next
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="key" href="/authentication">
+    Key formats, environment variables, rotation, preview mode.
+  </Card>
+  <Card title="POST /v1/render" icon="code" href="/api-reference/render">
+    Full parameter reference for the render endpoint.
+  </Card>
+</CardGroup>

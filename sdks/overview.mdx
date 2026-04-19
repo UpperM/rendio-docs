@@ -1,0 +1,81 @@
+---
+title: "SDKs"
+description: "Official clients for Node, Python, and Go. Same taxonomy, same retry semantics, same OTEL story."
+---
+
+Rendio ships three official SDKs plus a VSCode extension. All three runtime
+SDKs share the same taxonomy, retry behaviour, and OpenTelemetry integration
+— you can port code between them with minimal friction.
+
+<CardGroup cols={3}>
+  <Card title="Node / TypeScript" icon="js" href="/sdks/node/install">
+    `npm i rendio`. Works in Node, Bun, Deno, and the VSCode extension host.
+  </Card>
+  <Card title="Python" icon="python" href="/sdks/python/install">
+    `pip install rendio`. Python 3.9+.
+  </Card>
+  <Card title="Go" icon="golang" href="/sdks/go/install">
+    `go get github.com/rendio/rendio-go`. Go 1.21+.
+  </Card>
+</CardGroup>
+
+## What every SDK does
+
+| | Node | Python | Go |
+|---|---|---|---|
+| Reads `RENDIO_API_KEY` from env | ✅ | ✅ | ✅ |
+| Typed error hierarchy | ✅ | ✅ | ✅ |
+| Automatic retries (2 by default) | ✅ | ✅ | ✅ |
+| Exponential backoff with jitter | ✅ | ✅ | ✅ |
+| Honors `Retry-After` | ✅ | ✅ | ✅ |
+| Auto-generates `Idempotency-Key` on POST retries | ✅ | ✅ | ✅ |
+| OpenTelemetry trace propagation | ✅ | ✅ | ✅ |
+| `trace_id` / `span_id` on errors | ✅ | ✅ | ✅ |
+
+## Shared defaults
+
+| Option | Default | Env variable |
+|---|---|---|
+| `baseUrl` | `https://api.rendio.dev` | `RENDIO_BASE_URL` |
+| API key | *(required)* | `RENDIO_API_KEY` |
+| `timeout` (per attempt) | 30&nbsp;s | — |
+| `maxRetries` | 2 | — |
+| `telemetry` | on | — |
+
+Override any of these at construction time.
+
+## Hello-world, all three
+
+<Tabs>
+  <Tab title="Node">
+    ```ts
+    import Rendio from "rendio";
+    const rendio = new Rendio();
+    const pdf = await rendio.pdfs.create({ html: "<h1>Hi</h1>" });
+    console.log(pdf.url);
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import rendio
+    client = rendio.Rendio()
+    pdf = client.pdfs.create(html="<h1>Hi</h1>")
+    print(pdf.url)
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    client, _ := rendio.NewClient()
+    pdf, err := client.Pdfs.Create(ctx, rendio.PdfCreateParams{HTML: "<h1>Hi</h1>"})
+    if err != nil { log.Fatal(err) }
+    fmt.Println(pdf.URL)
+    ```
+  </Tab>
+</Tabs>
+
+## Cross-cutting guides
+
+- [Error handling](/sdks/error-handling) — the typed error hierarchy and when to branch on it.
+- [Retries & timeouts](/sdks/retries-and-timeouts) — backoff formula, retryable vs non-retryable.
+- [Idempotency](/sdks/idempotency) — safe POST retries, `Idempotency-Key` semantics.
+- [OpenTelemetry](/sdks/opentelemetry) — zero-config tracing, emitted attributes, APM setup.

@@ -1,0 +1,732 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Rendio API",
+    "version": "0.0.1",
+    "description": "HTML-to-PDF (and PNG / JPEG screenshot) rendering API. Full documentation at https://rendio.dev/docs."
+  },
+  "servers": [
+    {
+      "url": "https://api.rendio.dev",
+      "description": "Production"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "API key (rk_live_* or rk_test_*)"
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "validation_error",
+                  "html_too_large",
+                  "invalid_api_key",
+                  "rate_limit_exceeded",
+                  "quota_exceeded",
+                  "render_timeout",
+                  "not_found",
+                  "render_failed",
+                  "server_busy",
+                  "plan_limit",
+                  "concurrent_limit_exceeded",
+                  "url_blocked",
+                  "url_unreachable",
+                  "url_http_error",
+                  "url_timeout",
+                  "idempotency_conflict",
+                  "internal_error"
+                ],
+                "description": "Machine-readable error code."
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable error description."
+              },
+              "feature": {
+                "type": "string",
+                "description": "Affected feature identifier (present for plan_limit errors)."
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "RenderResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "rd_abc123def456",
+            "description": "Unique render identifier (trace ID)."
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "example": "https://cdn.rendio.dev/f/abc123.pdf",
+            "description": "CDN download URL (valid for the duration of `expiresAt`)."
+          },
+          "pages": {
+            "type": "integer",
+            "description": "Number of pages in the rendered PDF (0 for images)."
+          },
+          "size": {
+            "type": "integer",
+            "description": "File size in bytes."
+          },
+          "expiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "2026-04-26T12:00:00.000Z",
+            "description": "ISO 8601 UTC timestamp when the CDN link expires. Null for preview renders."
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "chromiumVersion": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Chromium build version used for rendering."
+              },
+              "renderTimeMs": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Chromium rendering time in milliseconds."
+              }
+            },
+            "required": [
+              "chromiumVersion",
+              "renderTimeMs"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "url",
+          "pages",
+          "size",
+          "expiresAt",
+          "meta"
+        ]
+      },
+      "FileResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "File identifier."
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "CDN download URL."
+          },
+          "pages": {
+            "type": "integer",
+            "description": "Number of pages."
+          },
+          "size": {
+            "type": "integer",
+            "description": "File size in bytes."
+          },
+          "expiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Expiry timestamp (ISO 8601 UTC), or null."
+          }
+        },
+        "required": [
+          "id",
+          "url",
+          "pages",
+          "size",
+          "expiresAt"
+        ]
+      },
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "healthy",
+              "degraded"
+            ],
+            "description": "Overall service status."
+          },
+          "version": {
+            "type": "string",
+            "description": "Deployed application version."
+          },
+          "uptime": {
+            "type": "integer",
+            "description": "Process uptime in seconds."
+          },
+          "services": {
+            "type": "object",
+            "properties": {
+              "database": {
+                "type": "string",
+                "enum": [
+                  "healthy",
+                  "unhealthy"
+                ]
+              },
+              "worker": {
+                "type": "string",
+                "enum": [
+                  "healthy",
+                  "unhealthy"
+                ]
+              }
+            },
+            "required": [
+              "database",
+              "worker"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "version",
+          "uptime",
+          "services"
+        ]
+      },
+      "HealthDegradedResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "degraded"
+            ]
+          },
+          "version": {
+            "type": "string"
+          },
+          "uptime": {
+            "type": "integer"
+          },
+          "services": {
+            "type": "object",
+            "properties": {
+              "database": {
+                "type": "string",
+                "enum": [
+                  "unhealthy"
+                ]
+              },
+              "worker": {
+                "type": "string",
+                "enum": [
+                  "healthy",
+                  "unhealthy"
+                ]
+              }
+            },
+            "required": [
+              "database",
+              "worker"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "version",
+          "uptime",
+          "services"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  "paths": {
+    "/v1/render": {
+      "post": {
+        "summary": "Render HTML or URL to PDF / PNG / JPEG",
+        "description": "Converts HTML markup or a remote URL into a PDF (default), PNG, or JPEG. Set `response=url` (default) to receive a CDN link; set `response=buffer` to stream bytes directly. Exactly one of `html` or `source` must be supplied.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,255}$",
+              "description": "Client-generated idempotency key (1–255 chars, `[A-Za-z0-9_-]`). Replays the cached response if the same key is sent twice. Only honoured in URL mode for authenticated requests."
+            },
+            "required": false,
+            "description": "Client-generated idempotency key (1–255 chars, `[A-Za-z0-9_-]`). Replays the cached response if the same key is sent twice. Only honoured in URL mode for authenticated requests.",
+            "name": "Idempotency-Key",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "W3C Trace Context `traceparent` header for distributed tracing correlation."
+            },
+            "required": false,
+            "description": "W3C Trace Context `traceparent` header for distributed tracing correlation.",
+            "name": "traceparent",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "html": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1048576,
+                    "description": "Raw HTML to render. Exactly one of `html` or `source` must be provided. Max 1 MB."
+                  },
+                  "source": {
+                    "type": "string",
+                    "maxLength": 2048,
+                    "format": "uri",
+                    "description": "URL to load and render. Exactly one of `html` or `source` must be provided. Requires Starter plan or above."
+                  },
+                  "navTimeoutMs": {
+                    "type": "integer",
+                    "minimum": 1000,
+                    "maximum": 30000,
+                    "description": "Navigation timeout in milliseconds (1000–30000). Overrides the default per-plan timeout."
+                  },
+                  "css": {
+                    "type": "string",
+                    "maxLength": 1048576,
+                    "default": "",
+                    "description": "Additional CSS injected before rendering. Max 1 MB."
+                  },
+                  "data": {
+                    "type": "object",
+                    "additionalProperties": {},
+                    "default": {},
+                    "description": "Template variables available in the HTML as `{{ key }}`."
+                  },
+                  "pageSize": {
+                    "type": "string",
+                    "enum": [
+                      "A4",
+                      "A3",
+                      "Letter",
+                      "Legal",
+                      "Tabloid"
+                    ],
+                    "default": "A4",
+                    "description": "Paper size preset."
+                  },
+                  "response": {
+                    "type": "string",
+                    "enum": [
+                      "url",
+                      "buffer"
+                    ],
+                    "default": "url",
+                    "description": "`url` returns a JSON envelope with a CDN link; `buffer` streams the binary file directly."
+                  },
+                  "preview": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Preview mode: renders without auth requirement or quota, returns `buffer` only."
+                  },
+                  "waitUntil": {
+                    "type": "string",
+                    "enum": [
+                      "commit",
+                      "domcontentloaded",
+                      "load",
+                      "networkidle"
+                    ],
+                    "default": "domcontentloaded",
+                    "description": "Page load event to wait for before rendering."
+                  },
+                  "landscape": {
+                    "type": "boolean",
+                    "description": "Render in landscape orientation."
+                  },
+                  "margin": {
+                    "type": "object",
+                    "properties": {
+                      "top": {
+                        "type": "string",
+                        "description": "Top margin (CSS value, e.g. \"10mm\")"
+                      },
+                      "right": {
+                        "type": "string",
+                        "description": "Right margin"
+                      },
+                      "bottom": {
+                        "type": "string",
+                        "description": "Bottom margin"
+                      },
+                      "left": {
+                        "type": "string",
+                        "description": "Left margin"
+                      }
+                    },
+                    "description": "Page margins using CSS length values"
+                  },
+                  "width": {
+                    "type": "string",
+                    "description": "Custom page width (CSS value). Overrides `pageSize`."
+                  },
+                  "height": {
+                    "type": "string",
+                    "description": "Custom page height (CSS value). Overrides `pageSize`."
+                  },
+                  "preferCSSPageSize": {
+                    "type": "boolean",
+                    "description": "Use the CSS `@page` size declaration instead of `pageSize`."
+                  },
+                  "scale": {
+                    "type": "number",
+                    "minimum": 0.1,
+                    "maximum": 2,
+                    "description": "Page scale factor (0.1–2)."
+                  },
+                  "displayHeaderFooter": {
+                    "type": "boolean",
+                    "description": "Render `headerTemplate` and `footerTemplate`."
+                  },
+                  "headerTemplate": {
+                    "type": "string",
+                    "maxLength": 1048576,
+                    "description": "HTML template for the page header. Max 1 MB."
+                  },
+                  "footerTemplate": {
+                    "type": "string",
+                    "maxLength": 1048576,
+                    "description": "HTML template for the page footer. Max 1 MB."
+                  },
+                  "printBackground": {
+                    "type": "boolean",
+                    "description": "Print CSS background graphics."
+                  },
+                  "pageRanges": {
+                    "type": "string",
+                    "description": "Page ranges to print (e.g. \"1-5, 8, 11-13\")."
+                  },
+                  "tagged": {
+                    "type": "boolean",
+                    "description": "Emit a tagged (accessible) PDF. Requires Starter plan."
+                  },
+                  "outline": {
+                    "type": "boolean",
+                    "description": "Include an outline (bookmarks) in the PDF."
+                  },
+                  "delay": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 10000,
+                    "description": "Extra delay in milliseconds after page load before rendering (0–10000)."
+                  },
+                  "waitForSelector": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "description": "CSS selector to wait for before rendering."
+                  },
+                  "output": {
+                    "type": "string",
+                    "enum": [
+                      "pdf",
+                      "png",
+                      "jpeg"
+                    ],
+                    "description": "Output format. Defaults to `pdf`. `png`/`jpeg` produce screenshots."
+                  },
+                  "encode": {
+                    "type": "string",
+                    "enum": [
+                      "raw",
+                      "base64"
+                    ],
+                    "description": "Response encoding for buffer mode. `base64` returns a base64-encoded string."
+                  },
+                  "javascript": {
+                    "type": "string",
+                    "maxLength": 102400,
+                    "description": "JavaScript executed in the page before rendering. Requires Starter plan."
+                  },
+                  "filename": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "description": "Custom filename hint for the generated file (without extension)."
+                  }
+                },
+                "description": "Render request body. Exactly one of `html` or `source` must be provided (not both, not neither)."
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "**URL mode** (`response=url`): JSON envelope with a CDN link. **Buffer mode** (`response=buffer`): binary file bytes with Content-Type matching `output` (default `application/pdf`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RenderResponse"
+                }
+              },
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error (invalid parameters, missing html/source, invalid idempotency key).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication failed (missing or invalid API key).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Plan limit reached (feature requires a higher plan, or page-count limit exceeded).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "408": {
+            "description": "Render timed out after 30 seconds.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency conflict (key already used with a different body, or in-flight).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request entity too large (HTML or CSS exceeds 1 MB).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit or quota exceeded (API rate limit, monthly quota, or concurrent render limit).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (render service failure, storage failure).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Bad gateway (worker returned an error, or remote URL was unreachable / returned HTTP error).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable (worker is busy or starting up).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Gateway timeout waiting for the remote URL to respond.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/files/{id}": {
+      "get": {
+        "summary": "Get file metadata by ID",
+        "description": "Returns metadata and the CDN download URL for a previously rendered file owned by the authenticated user.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^(?:rd_[a-f0-9]{16}|[a-f0-9]{32})$",
+              "description": "File identifier — either `rd_` prefixed (16 hex chars) or a 32-char hex trace ID.",
+              "example": "rd_abc123def456abcd"
+            },
+            "required": true,
+            "description": "File identifier — either `rd_` prefixed (16 hex chars) or a 32-char hex trace ID.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "File metadata.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid file ID format.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File not found or does not belong to the authenticated user.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Liveness / readiness probe",
+        "description": "Returns service health status. A 200 response with `status: \"healthy\"` indicates full readiness. `status: \"degraded\"` means at least one dependency is down. 503 is returned when the database is unreachable.",
+        "responses": {
+          "200": {
+            "description": "Service is healthy (or degraded but reachable).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database is unreachable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthDegradedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "webhooks": {}
+}

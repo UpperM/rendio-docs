@@ -1,0 +1,139 @@
+---
+title: "Error codes"
+description: "Every failure mode has a stable error.code you can branch on."
+---
+
+All Rendio errors follow the same envelope:
+
+```json
+{
+  "error": {
+    "code": "quota_exceeded",
+    "message": "Monthly quota exceeded. Upgrade your plan at https://rendio.dev/pricing"
+  }
+}
+```
+
+`error.code` is stable across minor versions — safe to branch on. The
+`message` may change freely; do not match on it.
+
+## Full error list
+
+| Code | HTTP | Retryable | Meaning |
+|---|---|---|---|
+| `validation_error` | 400 | No | Request body is malformed or a param fails validation |
+| `url_blocked` | 400 | No | `source` URL rejected by the SSRF policy |
+| `invalid_api_key` | 401 | No | Missing, malformed, or revoked key |
+| `plan_limit` | 402 | No | Feature is gated behind a paid plan (see `error.feature`) |
+| `not_found` | 404 | No | File ID does not exist or is not owned by your account |
+| `render_timeout` | 408 | No | Render exceeded 30 seconds server-side |
+| `idempotency_conflict` | 409 | No | Idempotency key reused with a different body, or a prior request is still in flight |
+| `html_too_large` | 413 | No | `html` or `css` exceeds 1 MB |
+| `rate_limit_exceeded` | 429 | Yes | Per-key or per-plan API rate limit hit — honor `Retry-After` |
+| `quota_exceeded` | 429 | No | Monthly render quota or overage spending cap reached |
+| `concurrent_limit_exceeded` | 429 | Yes | Too many renders in-flight for your plan |
+| `render_failed` | 500 | No | Chromium crashed or produced invalid output (usually a template bug) |
+| `internal_error` | 500 | Yes | Unexpected server error |
+| `url_unreachable` | 502 | No | `source` URL: DNS / connection failure |
+| `url_http_error` | 502 | No | `source` URL returned non-2xx |
+| `server_busy` | 503 | Yes | Backend pool saturated — retry with backoff |
+| `url_timeout` | 504 | No | `source` URL navigation exceeded `navTimeoutMs` |
+
+## Retry semantics
+
+**Retryable** codes are safe to retry with exponential backoff:
+
+- Respect `Retry-After` when the server sends it (`rate_limit_exceeded`,
+  `concurrent_limit_exceeded`, `server_busy`).
+- Start at a 500&nbsp;ms base delay, cap at 5&nbsp;s, add jitter.
+- Give up after 2–3 attempts — more won't help.
+
+**Non-retryable** codes indicate a permanent condition for the current
+request. Fix the input (validation, HTML size, API key) or the plan (quota,
+feature gate) before retrying.
+
+The official SDKs implement this automatically — 2 attempts by default,
+configurable via `maxRetries`. `Idempotency-Key` is auto-generated on POST
+retries so the server deduplicates correctly.
+
+## Typed SDK errors
+
+The Node SDK maps every server code to a typed subclass of `RendioError`:
+
+```ts
+import Rendio, {
+  AuthenticationError,
+  ValidationError,
+  RateLimitError,
+  QuotaExceededError,
+  PlanLimitError,
+  ConcurrentLimitError,
+  TimeoutError,
+  NotFoundError,
+  RenderFailedError,
+  UrlBlockedError,
+  UrlUnreachableError,
+  UrlHttpError,
+  UrlTimeoutError,
+  IdempotencyError,
+  ServerBusyError,
+  InternalError,
+  ConnectionError,
+  RendioError,
+} from "rendio";
+```
+
+A production-grade error handler usually only needs to branch on a few:
+
+```ts
+import Rendio, {
+  QuotaExceededError,
+  RateLimitError,
+  PlanLimitError,
+  RendioError,
+} from "rendio";
+
+const rendio = new Rendio();
+
+try {
+  const pdf = await rendio.pdfs.create({ html });
+  return pdf.url;
+} catch (err) {
+  if (err instanceof QuotaExceededError) {
+    // Stop the queue — upgrading or resetting the cap is a human decision.
+    throw new Error("Rendio quota exhausted — pausing render queue");
+  }
+  if (err instanceof RateLimitError && err.retryAfter) {
+    await new Promise((r) => setTimeout(r, err.retryAfter! * 1000));
+    return renderWithRetry(html); // retry once
+  }
+  if (err instanceof PlanLimitError) {
+    throw new Error(`Feature "${err.feature}" requires a higher plan`);
+  }
+  if (err instanceof RendioError) {
+    // Log with requestId/traceId for support
+    console.error(`[${err.code}] ${err.message}`, {
+      requestId: err.requestId,
+      traceId: err.traceId,
+    });
+  }
+  throw err;
+}
+```
+
+## Error metadata
+
+Every `RendioError` carries:
+
+| Field | Type | Description |
+|---|---|---|
+| `code` | `string` | Stable machine-readable code from the table above |
+| `statusCode` | `number \| null` | HTTP status, or `null` for client-side errors (timeout, network) |
+| `message` | `string` | Human-readable explanation — do not branch on this |
+| `requestId` | `string \| undefined` | From `X-Rendio-Request-Id`. Share this with support. |
+| `traceId` | `string \| undefined` | W3C trace ID of the active OTEL span, when OTEL is configured |
+| `spanId` | `string \| undefined` | Span ID of the active OTEL span |
+
+`RateLimitError` and `ConcurrentLimitError` additionally expose
+`retryAfter: number | null` (seconds). `PlanLimitError` exposes
+`feature: string` identifying the gated feature.
