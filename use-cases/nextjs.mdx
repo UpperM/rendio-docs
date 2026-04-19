@@ -3,7 +3,7 @@ title: "Next.js"
 description: "Server-side PDF generation from a Next.js App Router API route."
 ---
 
-Add a PDF endpoint to a Next.js project in under 30 lines of code.
+Add a PDF endpoint to a Next.js App Router project.
 
 ## Setup
 
@@ -23,6 +23,7 @@ RENDIO_API_KEY=rk_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 import { NextRequest, NextResponse } from "next/server";
 import Rendio, {
   RendioError,
+  AuthenticationError,
   ValidationError,
   QuotaExceededError,
   PlanLimitError,
@@ -41,6 +42,13 @@ export async function POST(req: NextRequest) {
     const pdf = await rendio.pdfs.create({ html, data, pageSize });
     return NextResponse.json(pdf);
   } catch (err) {
+    if (err instanceof AuthenticationError) {
+      console.error("[rendio] API key invalid or revoked");
+      return NextResponse.json(
+        { error: "PDF service unavailable" },
+        { status: 500 },
+      );
+    }
     if (err instanceof ValidationError) {
       return NextResponse.json(
         { error: err.message, code: err.code },
@@ -109,9 +117,13 @@ Rendio's SDK works on the Edge runtime (uses global `fetch`). Add:
 export const runtime = "edge";
 ```
 
-at the top of the route file. OpenTelemetry tracing uses Node's
-`AsyncLocalStorage` — on Edge that's stubbed, so trace propagation is
-limited. If you rely on APM correlation, stick to the Node runtime.
+at the top of the route file.
+
+<Warning>
+OpenTelemetry tracing uses Node's `AsyncLocalStorage`, which is stubbed on
+the Edge runtime. Trace propagation will be limited — if you rely on APM
+correlation, stick to the Node runtime.
+</Warning>
 
 ## Streaming buffer mode
 
@@ -119,15 +131,92 @@ When you want to stream raw PDF bytes straight to the browser (no CDN hop):
 
 ```ts
 export async function POST(req: NextRequest) {
-  const { html } = await req.json();
-  const result = await rendio.pdfs.create({ html, response: "buffer" });
+  try {
+    const { html } = await req.json();
+    const result = await rendio.pdfs.create({ html, response: "buffer" });
 
-  return new Response(result.buffer, {
-    status: 200,
-    headers: {
-      "Content-Type": "application/pdf",
-      "Content-Disposition": 'attachment; filename="invoice.pdf"',
-    },
+    return new Response(result.buffer, {
+      status: 200,
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": 'attachment; filename="invoice.pdf"',
+      },
+    });
+  } catch (err) {
+    if (err instanceof RendioError) {
+      return NextResponse.json(
+        { error: err.message, code: err.code },
+        { status: err.statusCode ?? 500 },
+      );
+    }
+    throw err;
+  }
+}
+```
+
+## Server Action
+
+Render a PDF and return the CDN URL to the client:
+
+```ts
+// app/actions/generate-pdf.ts
+"use server";
+
+import Rendio from "rendio";
+
+const rendio = new Rendio();
+
+export async function generateInvoicePdf(html: string) {
+  const pdf = await rendio.pdfs.create({ html, pageSize: "A4" });
+  return { url: pdf.url, id: pdf.id };
+}
+```
+
+```tsx
+// app/invoice/page.tsx
+"use client";
+
+import { generateInvoicePdf } from "../actions/generate-pdf";
+import { useState } from "react";
+
+export default function InvoicePage() {
+  const [url, setUrl] = useState<string | null>(null);
+
+  async function handleGenerate() {
+    const { url } = await generateInvoicePdf("<h1>Invoice #001</h1>");
+    setUrl(url);
+  }
+
+  return (
+    <div>
+      <button onClick={handleGenerate}>Generate PDF</button>
+      {url && <a href={url} download>Download PDF</a>}
+    </div>
+  );
+}
+```
+
+## Browser download (client-side)
+
+When your API route returns buffer-mode bytes, trigger a file download in
+the browser:
+
+```ts
+async function downloadPdf(html: string) {
+  const res = await fetch("/api/pdf", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ html }),
   });
+
+  if (!res.ok) throw new Error("PDF generation failed");
+
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "document.pdf";
+  a.click();
+  URL.revokeObjectURL(url);
 }
 ```

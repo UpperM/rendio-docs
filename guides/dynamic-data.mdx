@@ -8,19 +8,53 @@ values through `data`, reference them with `{{variable}}`.
 
 ## Quick example
 
-```ts
-const pdf = await rendio.pdfs.create({
-  html: `
-    <h1>Invoice #{{invoice.number}}</h1>
-    <p>Client: {{client.name}}</p>
-    <p>Total: {{invoice.total}}</p>
-  `,
-  data: {
-    invoice: { number: "2026-042", total: "$4,320.00" },
-    client: { name: "Acme Corp" },
-  },
-});
-```
+<Tabs>
+  <Tab title="Node">
+    ```ts
+    const pdf = await rendio.pdfs.create({
+      html: `
+        <h1>Invoice #{{invoice.number}}</h1>
+        <p>Client: {{client.name}}</p>
+        <p>Total: {{invoice.total}}</p>
+      `,
+      data: {
+        invoice: { number: "2026-042", total: "$4,320.00" },
+        client: { name: "Acme Corp" },
+      },
+    });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    pdf = client.pdfs.create(
+        html="""
+            <h1>Invoice #{{invoice.number}}</h1>
+            <p>Client: {{client.name}}</p>
+            <p>Total: {{invoice.total}}</p>
+        """,
+        data={
+            "invoice": {"number": "2026-042", "total": "$4,320.00"},
+            "client": {"name": "Acme Corp"},
+        },
+    )
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    pdf, err := client.Pdfs.Create(ctx, rendio.PdfCreateParams{
+        HTML: `
+            <h1>Invoice #{{invoice.number}}</h1>
+            <p>Client: {{client.name}}</p>
+            <p>Total: {{invoice.total}}</p>
+        `,
+        Data: map[string]any{
+            "invoice": map[string]any{"number": "2026-042", "total": "$4,320.00"},
+            "client":  map[string]any{"name": "Acme Corp"},
+        },
+    })
+    ```
+  </Tab>
+</Tabs>
 
 ## Variables
 
@@ -101,21 +135,55 @@ Handlebars treats these as falsy: `false`, `undefined`, `null`, `""`, `0`,
 Handlebars has no built-in formatters. Format in your app before
 sending:
 
-```ts
-const fmtCurrency = (n: number) =>
-  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
+<Tabs>
+  <Tab title="Node">
+    ```ts
+    const fmtCurrency = (n: number) =>
+      new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
 
-const fmtDate = (d: Date) =>
-  new Intl.DateTimeFormat("en-US", { dateStyle: "long" }).format(d);
+    const fmtDate = (d: Date) =>
+      new Intl.DateTimeFormat("en-US", { dateStyle: "long" }).format(d);
 
-const pdf = await rendio.pdfs.create({
-  html: "<p>Total: {{total}}</p><p>Date: {{date}}</p>",
-  data: {
-    total: fmtCurrency(4320),
-    date: fmtDate(new Date()),
-  },
-});
-```
+    const pdf = await rendio.pdfs.create({
+      html: "<p>Total: {{total}}</p><p>Date: {{date}}</p>",
+      data: {
+        total: fmtCurrency(4320),
+        date: fmtDate(new Date()),
+      },
+    });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import locale
+    from datetime import date
+
+    locale.setlocale(locale.LC_ALL, "en_US.UTF-8")
+
+    pdf = client.pdfs.create(
+        html="<p>Total: {{total}}</p><p>Date: {{date}}</p>",
+        data={
+            "total": locale.currency(4320, grouping=True),
+            "date": date.today().strftime("%B %d, %Y"),
+        },
+    )
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    import "fmt"
+    import "time"
+
+    pdf, err := client.Pdfs.Create(ctx, rendio.PdfCreateParams{
+        HTML: "<p>Total: {{total}}</p><p>Date: {{date}}</p>",
+        Data: map[string]any{
+            "total": fmt.Sprintf("$%,.2f", 4320.0),
+            "date":  time.Now().Format("January 02, 2006"),
+        },
+    })
+    ```
+  </Tab>
+</Tabs>
 
 ## Syntax reference
 

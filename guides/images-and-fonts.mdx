@@ -12,29 +12,90 @@ embedding or fetching.
 Embed the image directly in your HTML. Always works, no network dependency,
 predictable latency.
 
-```ts
-import { readFileSync } from "node:fs";
+<Tabs>
+  <Tab title="Node">
+    ```ts
+    import { readFileSync } from "node:fs";
 
-const logo = readFileSync("./logo.png").toString("base64");
+    const logo = readFileSync("./logo.png").toString("base64");
 
-const pdf = await rendio.pdfs.create({
-  html: `
-    <img src="data:image/png;base64,${logo}" style="height: 40px;">
-    <h1>Invoice</h1>
-  `,
-});
-```
+    const pdf = await rendio.pdfs.create({
+      html: `
+        <img src="data:image/png;base64,${logo}" style="height: 40px;">
+        <h1>Invoice</h1>
+      `,
+    });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import base64
+
+    with open("logo.png", "rb") as f:
+        logo = base64.b64encode(f.read()).decode()
+
+    pdf = client.pdfs.create(
+        html=f"""
+            <img src="data:image/png;base64,{logo}" style="height: 40px;">
+            <h1>Invoice</h1>
+        """,
+    )
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    import (
+        "encoding/base64"
+        "os"
+    )
+
+    data, _ := os.ReadFile("logo.png")
+    logo := base64.StdEncoding.EncodeToString(data)
+
+    pdf, err := client.Pdfs.Create(ctx, rendio.PdfCreateParams{
+        HTML: fmt.Sprintf(`
+            <img src="data:image/png;base64,%s" style="height: 40px;">
+            <h1>Invoice</h1>
+        `, logo),
+    })
+    ```
+  </Tab>
+</Tabs>
 
 Via Handlebars data, so the template doesn't contain the blob:
 
-```ts
-const pdf = await rendio.pdfs.create({
-  html: `<img src="{{logo}}" style="height: 40px;">`,
-  data: {
-    logo: `data:image/png;base64,${logo}`,
-  },
-});
-```
+<Tabs>
+  <Tab title="Node">
+    ```ts
+    const pdf = await rendio.pdfs.create({
+      html: `<img src="{{logo}}" style="height: 40px;">`,
+      data: {
+        logo: `data:image/png;base64,${logo}`,
+      },
+    });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    pdf = client.pdfs.create(
+        html='<img src="{{logo}}" style="height: 40px;">',
+        data={
+            "logo": f"data:image/png;base64,{logo}",
+        },
+    )
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    pdf, err := client.Pdfs.Create(ctx, rendio.PdfCreateParams{
+        HTML: `<img src="{{logo}}" style="height: 40px;">`,
+        Data: map[string]any{
+            "logo": fmt.Sprintf("data:image/png;base64,%s", logo),
+        },
+    })
+    ```
+  </Tab>
+</Tabs>
 
 <Warning>
   A 1&nbsp;MB image becomes ~1.33&nbsp;MB as base64 in your HTML. The
@@ -46,12 +107,32 @@ const pdf = await rendio.pdfs.create({
 
 Reference images by URL — Chromium fetches them at render time.
 
-```ts
-await rendio.pdfs.create({
-  html: `<img src="https://your-cdn.com/logo.png">`,
-  waitUntil: "load", // wait for the image to finish loading
-});
-```
+<Tabs>
+  <Tab title="Node">
+    ```ts
+    await rendio.pdfs.create({
+      html: `<img src="https://your-cdn.com/logo.png">`,
+      waitUntil: "load", // wait for the image to finish loading
+    });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    client.pdfs.create(
+        html='<img src="https://your-cdn.com/logo.png">',
+        wait_until="load",  # wait for the image to finish loading
+    )
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    pdf, err := client.Pdfs.Create(ctx, rendio.PdfCreateParams{
+        HTML:      `<img src="https://your-cdn.com/logo.png">`,
+        WaitUntil: rendio.WaitUntilLoad, // wait for the image to finish loading
+    })
+    ```
+  </Tab>
+</Tabs>
 
 **On the Free plan**, external resources (images, fonts, stylesheets) are
 rejected with `plan_limit` / `feature: "external_resources"`. Upgrade to
@@ -100,15 +181,41 @@ const dataUri = `data:image/svg+xml,${encodeURIComponent(svg)}`;
 Same rules as images — base64 works on Free, remote `@import` requires
 Starter+.
 
-```ts
-await rendio.pdfs.create({
-  html: "<h1>Hello</h1>",
-  css: `
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
-    body { font-family: 'Inter', sans-serif; }
-  `,
-});
-```
+<Tabs>
+  <Tab title="Node">
+    ```ts
+    await rendio.pdfs.create({
+      html: "<h1>Hello</h1>",
+      css: `
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+      `,
+    });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    client.pdfs.create(
+        html="<h1>Hello</h1>",
+        css="""
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+            body { font-family: 'Inter', sans-serif; }
+        """,
+    )
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    pdf, err := client.Pdfs.Create(ctx, rendio.PdfCreateParams{
+        HTML: "<h1>Hello</h1>",
+        CSS: `
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+            body { font-family: 'Inter', sans-serif; }
+        `,
+    })
+    ```
+  </Tab>
+</Tabs>
 
 For deterministic renders in production, serve the font from your own CDN
 or embed it via `@font-face` + base64:

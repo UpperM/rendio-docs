@@ -82,43 +82,139 @@ When breaks behave unexpectedly:
 
 ## Full example
 
-```ts
-await rendio.pdfs.create({
-  html: `
-    <div class="cover">
-      <h1>Q1 2026 Report</h1>
-    </div>
-    <div class="chapter">
-      <h2>Executive Summary</h2>
-      <p>…</p>
-    </div>
-    <div class="chapter">
-      <h2>Financial Summary</h2>
-      <table>
-        <thead>
-          <tr><th>Metric</th><th>Q4</th><th>Q1</th><th>Δ</th></tr>
-        </thead>
-        <tbody>
-          <tr><td>Revenue</td><td>$1.2M</td><td>$1.7M</td><td>+42%</td></tr>
-          <tr><td>Active Users</td><td>12,400</td><td>18,200</td><td>+47%</td></tr>
-        </tbody>
-      </table>
-    </div>
-  `,
-  css: `
-    @page { margin: 20mm; }
-    body { font-family: 'Helvetica Neue', sans-serif; font-size: 13px; }
-    .cover { height: 100vh; display: flex; align-items: center; justify-content: center; }
-    .chapter { page-break-before: always; }
-    h2 { page-break-after: avoid; font-size: 20px; }
-    table { width: 100%; border-collapse: collapse; }
-    thead { display: table-header-group; }
-    tr { page-break-inside: avoid; }
-    th, td { padding: 10px; }
-    th { background: #f5f5f5; text-align: left; }
-  `,
-  pageSize: "A4",
-  printBackground: true,
-  outline: true,
-});
-```
+<Tabs>
+  <Tab title="Node">
+    ```ts
+    await rendio.pdfs.create({
+      html: `
+        <div class="cover">
+          <h1>Q1 2026 Report</h1>
+        </div>
+        <div class="chapter">
+          <h2>Executive Summary</h2>
+          <p>…</p>
+        </div>
+        <div class="chapter">
+          <h2>Financial Summary</h2>
+          <table>
+            <thead>
+              <tr><th>Metric</th><th>Q4</th><th>Q1</th><th>Δ</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Revenue</td><td>$1.2M</td><td>$1.7M</td><td>+42%</td></tr>
+              <tr><td>Active Users</td><td>12,400</td><td>18,200</td><td>+47%</td></tr>
+            </tbody>
+          </table>
+        </div>
+      `,
+      css: `
+        @page { margin: 20mm; }
+        body { font-family: 'Helvetica Neue', sans-serif; font-size: 13px; }
+        .cover { height: 100vh; display: flex; align-items: center; justify-content: center; }
+        .chapter { page-break-before: always; }
+        h2 { page-break-after: avoid; font-size: 20px; }
+        table { width: 100%; border-collapse: collapse; }
+        thead { display: table-header-group; }
+        tr { page-break-inside: avoid; }
+        th, td { padding: 10px; }
+        th { background: #f5f5f5; text-align: left; }
+      `,
+      pageSize: "A4",
+      printBackground: true,
+      outline: true,
+    });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    html = """
+        <div class="cover">
+          <h1>Q1 2026 Report</h1>
+        </div>
+        <div class="chapter">
+          <h2>Executive Summary</h2>
+          <p>…</p>
+        </div>
+        <div class="chapter">
+          <h2>Financial Summary</h2>
+          <table>
+            <thead>
+              <tr><th>Metric</th><th>Q4</th><th>Q1</th><th>Δ</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Revenue</td><td>$1.2M</td><td>$1.7M</td><td>+42%</td></tr>
+              <tr><td>Active Users</td><td>12,400</td><td>18,200</td><td>+47%</td></tr>
+            </tbody>
+          </table>
+        </div>
+    """
+
+    css = """
+        @page { margin: 20mm; }
+        body { font-family: 'Helvetica Neue', sans-serif; font-size: 13px; }
+        .cover { height: 100vh; display: flex; align-items: center; justify-content: center; }
+        .chapter { page-break-before: always; }
+        h2 { page-break-after: avoid; font-size: 20px; }
+        table { width: 100%; border-collapse: collapse; }
+        thead { display: table-header-group; }
+        tr { page-break-inside: avoid; }
+        th, td { padding: 10px; }
+        th { background: #f5f5f5; text-align: left; }
+    """
+
+    client.pdfs.create(
+        html=html,
+        css=css,
+        page_size="A4",
+        print_background=True,
+        outline=True,
+    )
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    html := `
+        <div class="cover">
+          <h1>Q1 2026 Report</h1>
+        </div>
+        <div class="chapter">
+          <h2>Executive Summary</h2>
+          <p>…</p>
+        </div>
+        <div class="chapter">
+          <h2>Financial Summary</h2>
+          <table>
+            <thead>
+              <tr><th>Metric</th><th>Q4</th><th>Q1</th><th>Δ</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Revenue</td><td>$1.2M</td><td>$1.7M</td><td>+42%</td></tr>
+              <tr><td>Active Users</td><td>12,400</td><td>18,200</td><td>+47%</td></tr>
+            </tbody>
+          </table>
+        </div>
+    `
+
+    css := `
+        @page { margin: 20mm; }
+        body { font-family: 'Helvetica Neue', sans-serif; font-size: 13px; }
+        .cover { height: 100vh; display: flex; align-items: center; justify-content: center; }
+        .chapter { page-break-before: always; }
+        h2 { page-break-after: avoid; font-size: 20px; }
+        table { width: 100%; border-collapse: collapse; }
+        thead { display: table-header-group; }
+        tr { page-break-inside: avoid; }
+        th, td { padding: 10px; }
+        th { background: #f5f5f5; text-align: left; }
+    `
+
+    pdf, err := client.Pdfs.Create(ctx, rendio.PdfCreateParams{
+        HTML:            html,
+        CSS:             css,
+        PageSize:        rendio.PageSizeA4,
+        PrintBackground: rendio.Bool(true),
+        Outline:         rendio.Bool(true),
+    })
+    ```
+  </Tab>
+</Tabs>

@@ -1,7 +1,7 @@
 ---
 title: "GET /health"
 description: "Liveness probe for the Rendio API."
-api: "GET https://api.rendio.dev/health"
+api: "GET https://rendio.dev/api/health"
 ---
 
 Liveness probe. No authentication required. Returns the status of the API
@@ -62,14 +62,14 @@ if you need fine-grained detection.
 <RequestExample>
 
 ```bash cURL
-curl https://api.rendio.dev/health
+curl https://rendio.dev/api/health
 ```
 
 ```yaml docker-compose
 services:
   myapp:
     healthcheck:
-      test: ["CMD", "curl", "-f", "https://api.rendio.dev/health"]
+      test: ["CMD", "curl", "-f", "https://rendio.dev/api/health"]
       interval: 30s
       timeout: 5s
       retries: 3

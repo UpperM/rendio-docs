@@ -1,0 +1,129 @@
+---
+title: "Mock Data & TSX"
+description: "Companion .data.json files supply preview context. TSX templates render via esbuild + renderToStaticMarkup."
+---
+
+<Note>
+  This page covers the Node.js / TypeScript workflow. Python and Go
+  developers use HTML or Handlebars templates — `.data.json` sidecars
+  work the same way for those templates (the extension loads the JSON as
+  Handlebars context), but the TSX pipeline described below is specific
+  to the Node ecosystem.
+</Note>
+
+## Mock data files
+
+Every template can have a companion `<name>.data.json` file in the same
+directory. The extension loads it automatically when rendering that
+template:
+
+- **HTML / Handlebars templates**: the JSON object is used as the
+  Handlebars interpolation context — `{{variable}}` resolves against it.
+- **TSX templates**: the JSON object is spread as React props into the
+  component.
+
+```
+templates/
+├── invoice.hbs
+├── invoice.data.json       ← loaded as Handlebars context
+├── invoice.rendio.json     ← render options
+├── Report.tsx
+└── Report.data.json        ← spread as props into Report
+```
+
+### Edit Mock Data command
+
+Run **`Rendio: Edit Mock Data`** while the template is the active editor.
+The extension opens the companion `.data.json` in a side editor — or
+creates it with an empty `{}` if it doesn't exist yet.
+
+### Auto-refresh
+
+Saving `.data.json` re-renders the preview automatically. You can keep
+the template and data files in split editors and see the PDF update live
+as you change values.
+
+## TSX pipeline
+
+When you open a `.tsx` file and trigger a preview, the extension runs
+the following pipeline entirely in-process (no temp files, no shell
+scripts):
+
+1. **Bundle** — `esbuild` bundles the component and its local imports
+   into a single JS string. External packages (`react`, `react-dom`,
+   etc.) are marked as external so they're resolved from the workspace's
+   `node_modules`.
+2. **Wrap** — the extension generates a small wrapper that imports the
+   bundled component, imports `renderToStaticMarkup` from `react-dom/server`,
+   and calls `renderToStaticMarkup(<Component {...props} />)` with
+   the `.data.json` contents as props.
+3. **Evaluate** — the wrapper is evaluated in Node.js (inside the
+   extension's process). The return value is an HTML string.
+4. **Send** — the HTML string is sent to the Rendio API (with `rendio.json`
+   config applied), and the resulting PDF is displayed in the preview panel.
+
+The component file itself is never executed as a script — the extension
+reads it as source text, bundles it, and evaluates the output.
+
+### Requirements
+
+`react` and `react-dom` must be installed in the workspace. The
+extension resolves them from the workspace's `node_modules`, not its
+own. Install them as dev dependencies if they aren't already:
+
+```bash
+npm install -D react react-dom @types/react
+```
+
+`esbuild` must also be available in the workspace:
+
+```bash
+npm install -D esbuild
+```
+
+### Limitations
+
+TSX templates render with `renderToStaticMarkup` — pure static HTML
+output. This means:
+
+| Works | Does not work |
+|---|---|
+| Functional components, props, conditionals, `.map()` | `useState`, `useEffect`, `useRef`, any other hook |
+| Inline `<style>` tags | CSS-in-JS runtime engines (styled-components emit, Emotion runtime) |
+| `<img src="data:image/…">`, base64 assets | `next/image`, `next/link`, framework-specific components |
+| Server-safe utilities (`Intl.NumberFormat`, `date-fns`) | Browser-only APIs (`window`, `localStorage`, `navigator`) |
+
+If a component uses client hooks or browser APIs, the evaluation step
+will throw. The error appears in the preview panel.
+
+## Using the same component in production
+
+The extension and your production code both use the same template file.
+In production, call `renderToStaticMarkup` yourself and pass the result
+to the SDK:
+
+```ts
+import { renderToStaticMarkup } from "react-dom/server";
+import Rendio from "rendio";
+import { resolveConfig } from "@rendio/config";
+import Invoice from "./templates/Invoice";
+
+const rendio = new Rendio();
+
+export async function renderInvoice(props: InvoiceProps): Promise<string> {
+  const config = await resolveConfig("./templates/Invoice.tsx");
+  const html = renderToStaticMarkup(<Invoice {...props} />);
+
+  const pdf = await rendio.pdfs.create({ html, ...config });
+  return pdf.url;
+}
+```
+
+`resolveConfig()` applies the same `rendio.json` and sidecar config the
+extension uses. The output is identical.
+
+## See also
+
+- [Live Preview](/dev-prod-parity/live-preview) — supported file types, auto-refresh triggers.
+- [Render Config](/dev-prod-parity/render-config) — per-template config sidecars, `css` file references.
+- [Using @rendio/config](/dev-prod-parity/using-rendio-config) — `resolveConfig()` in production.

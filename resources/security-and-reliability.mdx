@@ -1,0 +1,85 @@
+---
+title: "Security & Reliability"
+description: "How Rendio protects your data and keeps the service running."
+---
+
+## Infrastructure
+
+Rendio runs on dedicated infrastructure in Europe (Frankfurt, DE). All
+components — API gateway, render workers, storage — are in the same
+region. No customer data leaves the EU unless you explicitly use a
+non-EU CDN domain.
+
+- **Compute**: Isolated containers per render. No shared browser state
+  between requests. Each render gets a fresh Chromium context that is
+  destroyed after the response is sent.
+- **Storage**: Rendered files are stored in Cloudflare R2 (S3-compatible)
+  with server-side encryption at rest. CDN URLs are signed and expire
+  per your plan's retention policy (24h Free, 30 days Starter/Pro).
+- **Database**: SQLite with encrypted backups. Auth sessions, API keys,
+  and usage records are stored here. No render content is persisted in
+  the database.
+
+## Data handling
+
+- **HTML/CSS input** is held in memory for the duration of the render and
+  discarded immediately after. It is never written to disk or logged.
+- **Rendered output** (PDF/PNG/JPEG) is uploaded to R2 and accessible
+  only via the signed CDN URL returned in the response. Files are
+  automatically deleted after the retention window.
+- **API keys** are hashed before storage. The raw key is shown once at
+  creation and never again.
+- **No analytics or tracking** is performed on render content. Rendio
+  does not inspect, index, or train on your HTML/CSS/PDF data.
+
+## Authentication & access control
+
+- All API requests require a valid API key (`rk_live_*`).
+- Keys are scoped to a single user account. There is no cross-account
+  access.
+- Preview mode (`preview: true`) still requires authentication — there
+  is no unauthenticated API access.
+
+## Network security
+
+- **TLS 1.2+** required on all endpoints. Plaintext HTTP is rejected.
+- **SSRF protection**: URL-mode renders (`source` parameter) block
+  private IP ranges, localhost, and link-local addresses. Only public
+  HTTP(S) URLs are fetched.
+- **Rate limiting**: Per-key rate limits enforced at the edge. Burst
+  protection via Cloudflare WAF rules.
+- **Request size limits**: HTML and CSS bodies are capped at 1 MB each.
+  Oversized payloads return `413 html_too_large`.
+
+## Availability
+
+- **Status page**: [status.rendio.dev](https://status.rendio.dev) —
+  real-time uptime monitoring and incident history.
+- **Target availability**: 99.9% monthly uptime for Starter and Pro
+  plans. Free-tier availability is best-effort.
+- **Incident response**: Critical incidents (full outage) are
+  acknowledged within 30 minutes during business hours (CET). Updates
+  are posted to the status page.
+
+## Compliance
+
+- **GDPR**: Rendio processes data as a data processor under GDPR.
+  Customer data is stored and processed exclusively in the EU
+  (Frankfurt). A Data Processing Agreement (DPA) is available on
+  request for Starter and Pro customers.
+- **No sub-processors for render content**: HTML input and PDF output
+  are processed entirely on Rendio infrastructure. The only
+  sub-processor is Cloudflare (CDN/WAF/R2 storage).
+
+## Responsible disclosure
+
+If you discover a security vulnerability, please report it to
+**security@rendio.dev**. We commit to acknowledging reports within
+48 hours and providing a fix timeline within 5 business days.
+
+## Roadmap
+
+- SOC 2 Type I audit (planned)
+- Configurable data residency (US region, planned)
+- Webhook payload signing (planned)
+- IP allowlisting for API keys (planned)

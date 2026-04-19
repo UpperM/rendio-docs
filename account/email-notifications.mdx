@@ -1,0 +1,35 @@
+---
+title: "Email Notifications"
+description: "Automatic emails Rendio sends to your account email address for quota, billing, and account events."
+---
+
+Rendio sends transactional emails to the address on your account. All notifications are currently always-on — there are no per-notification preferences yet.
+
+## Notification types
+
+### Quota & billing
+
+| Email | When it fires | Plans |
+|---|---|---|
+| **Quota warning (80%)** | First time you reach 80% of your monthly quota in a billing period | All plans |
+| **Quota reached (100%)** | When your monthly quota is exhausted and renders start returning `429` | All plans |
+| **Spending cap reached** | When overage charges hit your configured cap and renders are blocked | Starter, Pro (overage enabled) |
+| **Overage billing summary** | After Paddle charges overage at the end of a billing period | Starter, Pro (overage enabled) |
+| **Plan updated** | Upgrade, downgrade, or cancellation confirmation | All plans |
+
+### Onboarding
+
+| Email | When it fires |
+|---|---|
+| **First render success** | Sent once, after your first successful render |
+| **Early errors alert** | Sent if you have 5 or more `4xx` errors in your first 7 days with zero successful renders |
+
+The early errors alert is designed to catch misconfigured API keys, missing `Content-Type` headers, or other setup issues that prevent you from completing a first render.
+
+## Deduplication
+
+Quota warning and quota reached emails are sent **once per billing period**. If you upgrade mid-period and your usage drops below the new quota, you won't receive a second warning until the next period.
+
+## Updating your email address
+
+Your notification email is the address on your Rendio account. Update it in **Dashboard → Settings → Profile**.

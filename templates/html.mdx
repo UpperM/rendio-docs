@@ -18,8 +18,17 @@ const pdf = await rendio.pdfs.create({
     <html>
       <head>
         <style>
-          body { font-family: 'Helvetica Neue', sans-serif; margin: 0; padding: 40px; color: #111; }
-          h1 { font-size: 28px; border-bottom: 2px solid #000; padding-bottom: 8px; }
+          body {
+            font-family: 'Helvetica Neue', sans-serif;
+            margin: 0;
+            padding: 40px;
+            color: #111;
+          }
+          h1 {
+            font-size: 28px;
+            border-bottom: 2px solid #000;
+            padding-bottom: 8px;
+          }
         </style>
       </head>
       <body>
@@ -72,11 +81,17 @@ const template = `
 const pdf = await rendio.pdfs.create({
   html: template,
   data: {
-    invoice: { number: "2026-042", date: "April 13, 2026", taxRate: 20, tax: "$720.00", total: "$4,320.00" },
+    invoice: {
+      number: "2026-042",
+      date: "April 13, 2026",
+      taxRate: 20,
+      tax: "$720.00",
+      total: "$4,320.00",
+    },
     client: { name: "Globex Corporation" },
     items: [
-      { description: "UI design", qty: 20, total: "$1,600.00" },
-      { description: "Frontend dev", qty: 25, total: "$2,000.00" },
+      { description: "UI design", qty: 20, total: "$1,600" },
+      { description: "Frontend dev", qty: 25, total: "$2,000" },
     ],
   },
   pageSize: "A4",

@@ -5,7 +5,7 @@ description: "Render your first PDF in under 2 minutes."
 
 <Tip>
   **Iterating on a template?** The
-  [VSCode extension](/vscode/overview) renders your `.html` / `.hbs` /
+  [VSCode extension](/dev-prod-parity/live-preview) renders your `.html` / `.hbs` /
   `.tsx` file as a real PDF in a side panel as you type, with word-level
   diff between saves. Faster loop than the API for template-authoring
   work — no quota consumed.
@@ -99,7 +99,7 @@ description: "Render your first PDF in under 2 minutes."
             PageSize: rendio.PageSizeA4,
         })
         if err != nil {
-            var rErr *rendio.Error
+            var rErr *rendio.RendioError
             if errors.As(err, &rErr) {
                 log.Printf("[%s] %s (request %s)", rErr.Code, rErr.Message, rErr.RequestID)
             }
@@ -110,7 +110,7 @@ description: "Render your first PDF in under 2 minutes."
       </Tab>
       <Tab title="curl">
         ```bash
-        curl https://api.rendio.dev/v1/render \
+        curl https://rendio.dev/api/v1/render \
           -H "Authorization: Bearer $RENDIO_API_KEY" \
           -H "Content-Type: application/json" \
           -d '{"html":"<h1>Hello from Rendio</h1>","pageSize":"A4"}'

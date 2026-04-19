@@ -21,34 +21,116 @@ Standard sizes via `pageSize`:
 Custom sizes via `width` + `height` (any CSS length unit). These
 override `pageSize`:
 
-```ts
-await rendio.pdfs.create({ html, width: "6in", height: "4in" });  // postcard
-await rendio.pdfs.create({ html, width: "80mm", height: "auto" }); // thermal receipt
-```
+<Tabs>
+  <Tab title="Node">
+    ```ts
+    await rendio.pdfs.create({ html, width: "6in", height: "4in" });  // postcard
+    await rendio.pdfs.create({ html, width: "80mm", height: "auto" }); // thermal receipt
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    client.pdfs.create(html=html, width="6in", height="4in")    # postcard
+    client.pdfs.create(html=html, width="80mm", height="auto")  # thermal receipt
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    // postcard
+    pdf, err := client.Pdfs.Create(ctx, rendio.PdfCreateParams{
+        HTML: html, Width: "6in", Height: "4in",
+    })
+    // thermal receipt
+    pdf, err = client.Pdfs.Create(ctx, rendio.PdfCreateParams{
+        HTML: html, Width: "80mm", Height: "auto",
+    })
+    ```
+  </Tab>
+</Tabs>
 
 Or declare the size in CSS and opt in with `preferCSSPageSize`:
 
-```ts
-await rendio.pdfs.create({
-  html: `<html><style>@page { size: 148mm 210mm; }</style><body>...</body></html>`,
-  preferCSSPageSize: true,
-});
-```
+<Tabs>
+  <Tab title="Node">
+    ```ts
+    await rendio.pdfs.create({
+      html: `<html><style>@page { size: 148mm 210mm; }</style><body>...</body></html>`,
+      preferCSSPageSize: true,
+    });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    client.pdfs.create(
+        html="<html><style>@page { size: 148mm 210mm; }</style><body>...</body></html>",
+        prefer_css_page_size=True,
+    )
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    pdf, err := client.Pdfs.Create(ctx, rendio.PdfCreateParams{
+        HTML:              "<html><style>@page { size: 148mm 210mm; }</style><body>...</body></html>",
+        PreferCSSPageSize: rendio.Bool(true),
+    })
+    ```
+  </Tab>
+</Tabs>
 
 ## Orientation
 
-```ts
-await rendio.pdfs.create({ html, pageSize: "A4", landscape: true }); // 297×210
-```
+<Tabs>
+  <Tab title="Node">
+    ```ts
+    await rendio.pdfs.create({ html, pageSize: "A4", landscape: true }); // 297×210
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    client.pdfs.create(html=html, page_size="A4", landscape=True)  # 297x210
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    pdf, err := client.Pdfs.Create(ctx, rendio.PdfCreateParams{
+        HTML:      html,
+        PageSize:  rendio.PageSizeA4,
+        Landscape: rendio.Bool(true), // 297x210
+    })
+    ```
+  </Tab>
+</Tabs>
 
 ## Margins
 
-```ts
-await rendio.pdfs.create({
-  html,
-  margin: { top: "25mm", right: "20mm", bottom: "25mm", left: "20mm" },
-});
-```
+<Tabs>
+  <Tab title="Node">
+    ```ts
+    await rendio.pdfs.create({
+      html,
+      margin: { top: "25mm", right: "20mm", bottom: "25mm", left: "20mm" },
+    });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    client.pdfs.create(
+        html=html,
+        margin={"top": "25mm", "right": "20mm", "bottom": "25mm", "left": "20mm"},
+    )
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    pdf, err := client.Pdfs.Create(ctx, rendio.PdfCreateParams{
+        HTML: html,
+        Margin: &rendio.Margin{
+            Top: "25mm", Right: "20mm", Bottom: "25mm", Left: "20mm",
+        },
+    })
+    ```
+  </Tab>
+</Tabs>
 
 Any CSS unit — `mm`, `cm`, `in`, `px`, `pt`. Typical values:
 

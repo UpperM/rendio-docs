@@ -1,0 +1,104 @@
+---
+title: "Preview Mode"
+description: "Render watermarked PDFs without consuming quota. Ideal for template development, CI checks, and design review."
+---
+
+Pass `preview: true` to any render call and Rendio returns a watermarked PDF without counting the render against your monthly quota.
+
+<Note>
+  Preview mode still requires a valid API key. There is no keyless API access.
+</Note>
+
+## Constraints
+
+- **`response` must be `"buffer"`** — URL-mode preview renders are rejected with `400 validation_error`. The watermarked output is never stored on the CDN.
+- **Daily limits** — Free plan: 50 preview renders per day. Starter and Pro: unlimited.
+- **Feature gates still apply** — `source` (URL→PDF), `javascript`, and `tagged` still check your plan. Preview mode only bypasses quota consumption, not plan-level feature restrictions.
+
+## Code examples
+
+<Tabs>
+  <Tab title="Node">
+    ```ts
+    import Rendio from "rendio";
+    import fs from "fs";
+
+    const rendio = new Rendio();
+
+    const pdf = await rendio.pdfs.create({
+      html: "<h1>Invoice Template Preview</h1>",
+      pageSize: "A4",
+      preview: true,
+      response: "buffer",
+    });
+
+    fs.writeFileSync("preview.pdf", pdf.buffer);
+    console.log(`Preview rendered: ${pdf.meta.renderTimeMs} ms`);
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import rendio
+
+    client = rendio.Rendio()
+
+    pdf = client.pdfs.create(
+        html="<h1>Invoice Template Preview</h1>",
+        page_size="A4",
+        preview=True,
+        response="buffer",
+    )
+
+    with open("preview.pdf", "wb") as f:
+        f.write(pdf.buffer)
+
+    print(f"Preview rendered: {pdf.meta.render_time_ms} ms")
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    import (
+        "os"
+        rendio "github.com/rendio/rendio-go"
+    )
+
+    client, err := rendio.NewClient()
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    pdf, err := client.Pdfs.Create(ctx, rendio.PdfCreateParams{
+        HTML:     "<h1>Invoice Template Preview</h1>",
+        PageSize: rendio.PageSizeA4,
+        Preview:  rendio.Bool(true),
+        Response: rendio.ResponseBuffer,
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    if err := os.WriteFile("preview.pdf", pdf.Buffer, 0644); err != nil {
+        log.Fatal(err)
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Use cases
+
+**Template development** — iterate on HTML/CSS without burning quota. Open the output PDF alongside your editor to check layout, fonts, and page breaks.
+
+**CI/CD preview checks** — render a sample document in your CI pipeline on every pull request to catch layout regressions before merging.
+
+**Design review** — share a watermarked PDF with stakeholders for sign-off on layout and content before going to production.
+
+**VSCode extension** — the [VSCode extension](/dev-prod-parity/live-preview) uses preview mode under the hood for its live preview panel. Every save triggers a new preview render and highlights word-level changes between versions.
+
+## Handling quota limits on the Free plan
+
+If you exceed 50 preview renders in a day on the Free plan, the API returns `429 rate_limit_exceeded`. Switch to a production render (remove `preview: true`) or wait until the next day.
+
+<Tip>
+  For heavy template iteration sessions, consider upgrading to Starter — preview
+  renders become unlimited and the daily limit disappears.
+</Tip>

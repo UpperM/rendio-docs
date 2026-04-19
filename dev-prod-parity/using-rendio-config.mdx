@@ -1,0 +1,172 @@
+---
+title: "Using @rendio/config"
+description: "resolveConfig() reads rendio.json and sidecar files, deep-merges the layers, inlines CSS, and returns options ready to spread into pdfs.create()."
+---
+
+`@rendio/config` is the Node.js package that reads `rendio.json` and
+`*.rendio.json` sidecar files and produces the same merged config object
+the VSCode extension uses for live previews. Spread the result into
+`pdfs.create()` and your production renders match the preview exactly.
+
+## Install
+
+```bash
+npm install @rendio/config
+```
+
+## `resolveConfig(templatePath)`
+
+The main export. Pass the path to your template file; the function
+returns a `Promise<RenderConfig>` with all applicable layers merged.
+
+```ts
+import Rendio from "rendio";
+import { resolveConfig } from "@rendio/config";
+import { readFileSync } from "node:fs";
+
+const rendio = new Rendio();
+
+export async function renderInvoice(data: InvoiceData): Promise<string> {
+  const config = await resolveConfig("./templates/invoice.hbs");
+  const html = readFileSync("./templates/invoice.hbs", "utf-8");
+
+  const pdf = await rendio.pdfs.create({ html, data, ...config });
+  return pdf.url;
+}
+```
+
+`resolveConfig` searches for `rendio.json` by walking up the directory
+tree from the template path until it finds one or hits the filesystem
+root. Per-template sidecars are resolved relative to the template file.
+
+## CSS file inlining
+
+When the `css` field in a config file is a relative path (ends with
+`.css`, contains no `{`), `resolveConfig` reads the file and inlines its
+contents into the returned config.
+
+```json
+{ "css": "./shared/print.css" }
+```
+
+The inlined CSS is sent to the API as the `css` parameter — no file path
+is exposed in the API call. The following guards are enforced:
+
+- **Path traversal** — the resolved path must stay within the directory
+  containing the config file. Paths that escape via `../` are rejected.
+- **Symlinks** — symbolic links are not followed.
+- **Size limit** — CSS files larger than 1 MB are rejected.
+
+A `ConfigError` is thrown if any guard fails.
+
+## Caching
+
+`resolveConfig` caches parsed config files by their last-modified time
+(`mtime`). Subsequent calls for the same template path return the cached
+result without touching the filesystem, as long as the files haven't
+changed.
+
+In test environments, call `clearConfigCache()` between test cases to
+prevent stale state:
+
+```ts
+import { clearConfigCache } from "@rendio/config";
+
+afterEach(() => {
+  clearConfigCache();
+});
+```
+
+## `ConfigError`
+
+Thrown when a config file is invalid, a referenced CSS file can't be
+read, or a validation rule fails. The error has two extra properties:
+
+| Property | Type | Description |
+|---|---|---|
+| `filePath` | string | Absolute path of the config file that caused the error |
+| `field` | string \| undefined | The field name, if the error is field-specific |
+
+```ts
+import { resolveConfig, ConfigError } from "@rendio/config";
+
+try {
+  const config = await resolveConfig("./templates/invoice.hbs");
+} catch (err) {
+  if (err instanceof ConfigError) {
+    console.error(`Config error in ${err.filePath} (field: ${err.field}): ${err.message}`);
+  }
+  throw err;
+}
+```
+
+## Validation
+
+All 18 config fields are validated on load. Unknown fields are rejected.
+
+| Check | Details |
+|---|---|
+| Type checking | `pageSize` must be a string; `scale` must be a number; `landscape` must be a boolean; etc. |
+| Range checks | `scale` must be between `0.1` and `2.0`; `delay` must be non-negative. |
+| Enum checks | `pageSize` must be one of `A4`, `A3`, `Letter`, `Legal`, `Tabloid`. `output` must be `pdf`, `png`, or `jpeg`. `waitUntil` must be one of the four Chromium network idle strings. |
+| Unknown fields | Any field not in the supported set throws a `ConfigError`. |
+
+Validation runs at `resolveConfig()` call time, not at import time —
+config errors are caught the first time the template is rendered.
+
+## Deep merge behavior
+
+The three config layers (project defaults, glob match, sidecar) are
+merged with the following rules:
+
+| Value type | Behavior |
+|---|---|
+| Scalars (`string`, `number`, `boolean`) | Later layer replaces earlier. |
+| Objects (e.g. `margin`) | Recursively merged — only the keys present in the later layer are overridden. |
+| Arrays | Later layer replaces entirely (no array merging). |
+
+Prototype pollution protection is applied at each merge step — keys like
+`__proto__` and `constructor` are silently dropped.
+
+### Example
+
+```json
+// rendio.json
+{ "margin": { "top": "20mm", "bottom": "20mm", "left": "20mm", "right": "20mm" } }
+```
+
+```json
+// invoice.rendio.json
+{ "margin": { "top": "30mm" } }
+```
+
+Resolved `margin`:
+```json
+{ "top": "30mm", "bottom": "20mm", "left": "20mm", "right": "20mm" }
+```
+
+Only `top` was overridden. The rest of `margin` carries through from
+the project level.
+
+## For non-Node languages
+
+<Tip>
+  `rendio.json` is plain JSON. Python and Go services can read it
+  directly and pass the options to their SDK — no npm package needed.
+  The resolution order (project defaults → first matching glob →
+  sidecar) is simple to implement:
+
+  1. Walk up from the template path to find `rendio.json`.
+  2. Check `templates` globs — take the first match.
+  3. Check for `<template-name>.rendio.json` next to the template.
+  4. Deep-merge the three layers.
+  5. If `css` is a relative path, read the file and inline its contents.
+
+  That's roughly 20 lines. The config format is documented in
+  [Render Config](/dev-prod-parity/render-config).
+</Tip>
+
+## See also
+
+- [Render Config](/dev-prod-parity/render-config) — the full rendio.json format, all 18 fields, resolution order.
+- [Mock Data & TSX](/dev-prod-parity/mock-data-tsx) — using `.data.json` and TSX components with `resolveConfig`.

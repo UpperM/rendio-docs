@@ -15,14 +15,38 @@ expressive enough.
 
 ## Quick start
 
-```ts
-await rendio.pdfs.create({
-  html: `<div id="greeting"></div>`,
-  javascript: `
-    document.getElementById('greeting').innerHTML = '<h1>Hello from JS!</h1>';
-  `,
-});
-```
+<Tabs>
+  <Tab title="Node">
+    ```ts
+    await rendio.pdfs.create({
+      html: `<div id="greeting"></div>`,
+      javascript: `
+        document.getElementById('greeting').innerHTML = '<h1>Hello from JS!</h1>';
+      `,
+    });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    client.pdfs.create(
+        html='<div id="greeting"></div>',
+        javascript="""
+            document.getElementById('greeting').innerHTML = '<h1>Hello from JS!</h1>';
+        """,
+    )
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    pdf, err := client.Pdfs.Create(ctx, rendio.PdfCreateParams{
+        HTML: `<div id="greeting"></div>`,
+        JavaScript: `
+            document.getElementById('greeting').innerHTML = '<h1>Hello from JS!</h1>';
+        `,
+    })
+    ```
+  </Tab>
+</Tabs>
 
 ## How it works
 
@@ -42,26 +66,78 @@ await rendio.pdfs.create({
 
 ## Charts — Chart.js
 
-```ts
-await rendio.pdfs.create({
-  html: `
-    <canvas id="chart" width="800" height="400"></canvas>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  `,
-  javascript: `
-    new Chart(document.getElementById('chart').getContext('2d'), {
-      type: 'bar',
-      data: {
-        labels: ['Q1', 'Q2', 'Q3', 'Q4'],
-        datasets: [{ label: 'Revenue', data: [12000, 19000, 15000, 25000], backgroundColor: '#3b82f6' }]
-      },
-      options: { responsive: false, animation: false }
+<Tabs>
+  <Tab title="Node">
+    ```ts
+    await rendio.pdfs.create({
+      html: `
+        <canvas id="chart" width="800" height="400"></canvas>
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+      `,
+      javascript: `
+        new Chart(document.getElementById('chart').getContext('2d'), {
+          type: 'bar',
+          data: {
+            labels: ['Q1', 'Q2', 'Q3', 'Q4'],
+            datasets: [{ label: 'Revenue', data: [12000, 19000, 15000, 25000], backgroundColor: '#3b82f6' }]
+          },
+          options: { responsive: false, animation: false }
+        });
+      `,
+      waitUntil: "networkidle",
+      printBackground: true,
     });
-  `,
-  waitUntil: "networkidle",
-  printBackground: true,
-});
-```
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    client.pdfs.create(
+        html="""
+            <canvas id="chart" width="800" height="400"></canvas>
+            <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        """,
+        javascript="""
+            new Chart(document.getElementById('chart').getContext('2d'), {
+              type: 'bar',
+              data: {
+                labels: ['Q1', 'Q2', 'Q3', 'Q4'],
+                datasets: [{ label: 'Revenue', data: [12000, 19000, 15000, 25000], backgroundColor: '#3b82f6' }]
+              },
+              options: { responsive: false, animation: false }
+            });
+        """,
+        wait_until="networkidle",
+        print_background=True,
+    )
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    html := `
+        <canvas id="chart" width="800" height="400"></canvas>
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    `
+
+    js := `
+        new Chart(document.getElementById('chart').getContext('2d'), {
+          type: 'bar',
+          data: {
+            labels: ['Q1', 'Q2', 'Q3', 'Q4'],
+            datasets: [{ label: 'Revenue', data: [12000, 19000, 15000, 25000], backgroundColor: '#3b82f6' }]
+          },
+          options: { responsive: false, animation: false }
+        });
+    `
+
+    pdf, err := client.Pdfs.Create(ctx, rendio.PdfCreateParams{
+        HTML:            html,
+        JavaScript:      js,
+        WaitUntil:       rendio.WaitUntilNetworkIdle,
+        PrintBackground: rendio.Bool(true),
+    })
+    ```
+  </Tab>
+</Tabs>
 
 <Tip>
   Always disable animations (`animation: false`) in charting libraries.
@@ -70,51 +146,159 @@ await rendio.pdfs.create({
 
 ## Charts — D3
 
-```ts
-await rendio.pdfs.create({
-  html: `
-    <div id="viz"></div>
-    <script src="https://d3js.org/d3.v7.min.js"></script>
-  `,
-  javascript: `
-    const data = [30, 86, 168, 281, 303, 365];
-    const svg = d3.select('#viz').append('svg').attr('width', 400).attr('height', 300);
-    svg.selectAll('rect').data(data).enter()
-      .append('rect')
-      .attr('x', (d, i) => i * 60)
-      .attr('y', d => 300 - d)
-      .attr('width', 50)
-      .attr('height', d => d)
-      .attr('fill', '#10b981');
-  `,
-  waitUntil: "networkidle",
-});
-```
+<Tabs>
+  <Tab title="Node">
+    ```ts
+    await rendio.pdfs.create({
+      html: `
+        <div id="viz"></div>
+        <script src="https://d3js.org/d3.v7.min.js"></script>
+      `,
+      javascript: `
+        const data = [30, 86, 168, 281, 303, 365];
+        const svg = d3.select('#viz').append('svg').attr('width', 400).attr('height', 300);
+        svg.selectAll('rect').data(data).enter()
+          .append('rect')
+          .attr('x', (d, i) => i * 60)
+          .attr('y', d => 300 - d)
+          .attr('width', 50)
+          .attr('height', d => d)
+          .attr('fill', '#10b981');
+      `,
+      waitUntil: "networkidle",
+    });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    client.pdfs.create(
+        html="""
+            <div id="viz"></div>
+            <script src="https://d3js.org/d3.v7.min.js"></script>
+        """,
+        javascript="""
+            const data = [30, 86, 168, 281, 303, 365];
+            const svg = d3.select('#viz').append('svg').attr('width', 400).attr('height', 300);
+            svg.selectAll('rect').data(data).enter()
+              .append('rect')
+              .attr('x', (d, i) => i * 60)
+              .attr('y', d => 300 - d)
+              .attr('width', 50)
+              .attr('height', d => d)
+              .attr('fill', '#10b981');
+        """,
+        wait_until="networkidle",
+    )
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    html := `
+        <div id="viz"></div>
+        <script src="https://d3js.org/d3.v7.min.js"></script>
+    `
+
+    js := `
+        const data = [30, 86, 168, 281, 303, 365];
+        const svg = d3.select('#viz').append('svg').attr('width', 400).attr('height', 300);
+        svg.selectAll('rect').data(data).enter()
+          .append('rect')
+          .attr('x', (d, i) => i * 60)
+          .attr('y', d => 300 - d)
+          .attr('width', 50)
+          .attr('height', d => d)
+          .attr('fill', '#10b981');
+    `
+
+    pdf, err := client.Pdfs.Create(ctx, rendio.PdfCreateParams{
+        HTML:       html,
+        JavaScript: js,
+        WaitUntil:  rendio.WaitUntilNetworkIdle,
+    })
+    ```
+  </Tab>
+</Tabs>
 
 ## DOM manipulation
 
-```ts
-await rendio.pdfs.create({
-  html: `
-    <table id="data">
-      <thead><tr><th>Name</th><th>Value</th></tr></thead>
-      <tbody></tbody>
-    </table>
-  `,
-  javascript: `
-    const rows = [
-      { name: 'Alpha', value: 100 },
-      { name: 'Beta', value: 200 },
-    ];
-    const tbody = document.querySelector('#data tbody');
-    for (const row of rows) {
-      const tr = document.createElement('tr');
-      tr.innerHTML = '<td>' + row.name + '</td><td>' + row.value + '</td>';
-      tbody.appendChild(tr);
-    }
-  `,
-});
-```
+<Tabs>
+  <Tab title="Node">
+    ```ts
+    await rendio.pdfs.create({
+      html: `
+        <table id="data">
+          <thead><tr><th>Name</th><th>Value</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      `,
+      javascript: `
+        const rows = [
+          { name: 'Alpha', value: 100 },
+          { name: 'Beta', value: 200 },
+        ];
+        const tbody = document.querySelector('#data tbody');
+        for (const row of rows) {
+          const tr = document.createElement('tr');
+          tr.innerHTML = '<td>' + row.name + '</td><td>' + row.value + '</td>';
+          tbody.appendChild(tr);
+        }
+      `,
+    });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    client.pdfs.create(
+        html="""
+            <table id="data">
+              <thead><tr><th>Name</th><th>Value</th></tr></thead>
+              <tbody></tbody>
+            </table>
+        """,
+        javascript="""
+            const rows = [
+              { name: 'Alpha', value: 100 },
+              { name: 'Beta', value: 200 },
+            ];
+            const tbody = document.querySelector('#data tbody');
+            for (const row of rows) {
+              const tr = document.createElement('tr');
+              tr.innerHTML = '<td>' + row.name + '</td><td>' + row.value + '</td>';
+              tbody.appendChild(tr);
+            }
+        """,
+    )
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    html := `
+        <table id="data">
+          <thead><tr><th>Name</th><th>Value</th></tr></thead>
+          <tbody></tbody>
+        </table>
+    `
+
+    js := `
+        const rows = [
+          { name: 'Alpha', value: 100 },
+          { name: 'Beta', value: 200 },
+        ];
+        const tbody = document.querySelector('#data tbody');
+        for (const row of rows) {
+          const tr = document.createElement('tr');
+          tr.innerHTML = '<td>' + row.name + '</td><td>' + row.value + '</td>';
+          tbody.appendChild(tr);
+        }
+    `
+
+    pdf, err := client.Pdfs.Create(ctx, rendio.PdfCreateParams{
+        HTML:       html,
+        JavaScript: js,
+    })
+    ```
+  </Tab>
+</Tabs>
 
 ## `waitUntil` pairings
 
@@ -138,20 +322,56 @@ DOM. It's sandboxed (no file-system or cross-origin privileges), but:
 - Only load third-party scripts from trusted CDNs — they can read and
   modify anything in the page.
 
-```ts
-// WRONG — user input injected into JS string (XSS)
-const name = req.body.name;
-await rendio.pdfs.create({
-  html: `<div id="name"></div>`,
-  javascript: `document.getElementById('name').innerHTML = '${name}';`,
-});
+<Tabs>
+  <Tab title="Node">
+    ```ts
+    // WRONG — user input injected into JS string (XSS)
+    const name = req.body.name;
+    await rendio.pdfs.create({
+      html: `<div id="name"></div>`,
+      javascript: `document.getElementById('name').innerHTML = '${name}';`,
+    });
 
-// RIGHT — Handlebars escapes automatically
-await rendio.pdfs.create({
-  html: `<div>{{name}}</div>`,
-  data: { name: req.body.name },
-});
-```
+    // RIGHT — Handlebars escapes automatically
+    await rendio.pdfs.create({
+      html: `<div>{{name}}</div>`,
+      data: { name: req.body.name },
+    });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    # WRONG — user input injected into JS string (XSS)
+    name = request.json["name"]
+    client.pdfs.create(
+        html='<div id="name"></div>',
+        javascript=f"document.getElementById('name').innerHTML = '{name}';",
+    )
+
+    # RIGHT — Handlebars escapes automatically
+    client.pdfs.create(
+        html="<div>{{name}}</div>",
+        data={"name": request.json["name"]},
+    )
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    // WRONG — user input injected into JS string (XSS)
+    name := r.FormValue("name")
+    client.Pdfs.Create(ctx, rendio.PdfCreateParams{
+        HTML:       `<div id="name"></div>`,
+        JavaScript: fmt.Sprintf(`document.getElementById('name').innerHTML = '%s';`, name),
+    })
+
+    // RIGHT — Handlebars escapes automatically
+    client.Pdfs.Create(ctx, rendio.PdfCreateParams{
+        HTML: `<div>{{name}}</div>`,
+        Data: map[string]any{"name": r.FormValue("name")},
+    })
+    ```
+  </Tab>
+</Tabs>
 
 ## JavaScript vs Handlebars — when to use which
 

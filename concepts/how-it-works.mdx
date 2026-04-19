@@ -10,14 +10,11 @@ right `waitUntil` value.
 
 ## The pipeline
 
-```
-  ┌─────────────┐    ┌──────────────┐    ┌──────────────┐    ┌─────────────┐
-  │  Your app   │───▶│   Gateway    │───▶│   Worker     │───▶│  CDN / You  │
-  │             │    │              │    │              │    │             │
-  │ HTML + CSS  │    │  Validate    │    │  Chromium    │    │  PDF bytes  │
-  │  + data     │    │  Auth        │    │  Render      │    │  or URL     │
-  │             │    │  Quota       │    │  Bytes out   │    │             │
-  └─────────────┘    └──────────────┘    └──────────────┘    └─────────────┘
+```mermaid
+flowchart LR
+  A["Your app\nHTML + CSS + data"] -->|POST /v1/render| B["Gateway\nValidate · Auth · Quota"]
+  B --> C["Worker\nChromium · Render"]
+  C --> D["CDN / You\nPDF bytes or URL"]
 ```
 
 ### 1 — Your request hits the gateway
@@ -47,7 +44,7 @@ A warm Chromium instance from the pool:
 6. Optionally waits for `waitForSelector` (10s timeout).
 7. Generates the PDF or screenshot with the requested layout options.
 
-Most renders complete in under 100&nbsp;ms when the pool is warm. Server-side
+Simple templates render in under 50&nbsp;ms; business documents like invoices and reports typically complete under 100&nbsp;ms. See [Benchmarks](/resources/benchmarks) for the full range. Server-side
 timeout is 30 seconds — beyond that you get `render_timeout`.
 
 ### 3 — Output delivery

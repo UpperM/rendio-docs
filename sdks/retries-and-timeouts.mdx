@@ -50,8 +50,9 @@ delay = min(baseDelay × 2^attempt + jitter, maxDelay)
 |---|---|---|
 | 1st retry (`attempt=0`) | 500 ms | 1500 ms |
 | 2nd retry (`attempt=1`) | 1000 ms | 2000 ms |
-| 3rd retry (`attempt=2`) | 2000 ms | 3000 ms |
-| 4th retry (`attempt=3`) | 4000 ms | 5000 ms (capped) |
+
+With the default `maxRetries: 2`, at most two retries occur. If you increase
+`maxRetries`, backoff continues doubling up to the 5000 ms cap.
 
 When the API returns `Retry-After: <n>`, the SDK waits exactly `n` seconds
 instead of the computed backoff. This applies to `rate_limit_exceeded`,
@@ -63,7 +64,7 @@ instead of the computed backoff. This applies to `rate_limit_exceeded`,
   <Tab title="Node">
     ```ts
     // No retries, 5-second timeout — typical in tests
-    new Rendio("rk_test_...", { maxRetries: 0, timeout: 5_000 });
+    new Rendio("rk_live_...", { maxRetries: 0, timeout: 5_000 });
 
     // High-reliability batch job — more retries, longer timeout
     new Rendio("rk_live_...", { maxRetries: 5, timeout: 60_000 });
@@ -122,6 +123,11 @@ cancel on timeout.
     defer cancel()
     pdf, err := client.Pdfs.Create(ctx, params)
     ```
+
+    If the context expires mid-backoff (between retries), the SDK abandons
+    remaining retries and returns a `*TimeoutError` with code
+    `client_timeout`. If it expires during an in-flight HTTP request, the
+    attempt is cancelled and the same error is returned.
   </Tab>
 </Tabs>
 
@@ -152,7 +158,7 @@ Set `maxRetries: 0` when you want to implement your own retry policy, or in
 tests to avoid backoff delays.
 
 ```ts
-const rendio = new Rendio("rk_test_...", { maxRetries: 0 });
+const rendio = new Rendio("rk_live_...", { maxRetries: 0 });
 
 try {
   await rendio.pdfs.create({ html });

@@ -1,7 +1,7 @@
 ---
 title: "POST /v1/render"
 description: "Render HTML or a URL to PDF, PNG, or JPEG."
-api: "POST https://api.rendio.dev/v1/render"
+api: "POST https://rendio.dev/api/v1/render"
 ---
 
 Renders HTML (or a remote URL) and returns either a CDN URL (default) or raw
@@ -222,7 +222,7 @@ Full taxonomy and retry rules: [Error codes](/api-reference/errors).
 <RequestExample>
 
 ```bash cURL
-curl https://api.rendio.dev/v1/render \
+curl https://rendio.dev/api/v1/render \
   -H "Authorization: Bearer $RENDIO_API_KEY" \
   -H "Idempotency-Key: $(uuidgen)" \
   -H "Content-Type: application/json" \
@@ -298,8 +298,8 @@ if err != nil {
         return err // upgrade path
     }
     var rate *rendio.RateLimitError
-    if errors.As(err, &rate) && rate.RetryAfter > 0 {
-        time.Sleep(time.Duration(rate.RetryAfter) * time.Second)
+    if errors.As(err, &rate) && rate.RetryAfter != nil && *rate.RetryAfter > 0 {
+        time.Sleep(time.Duration(*rate.RetryAfter) * time.Second)
     }
     return err
 }

@@ -1,0 +1,156 @@
+---
+title: "Server-Timing & Render Phases"
+description: "Per-phase timing breakdown from the Server-Timing response header. Use it to pinpoint where render time is going."
+---
+
+Every Rendio response includes a `Server-Timing` header with a breakdown of time spent in each rendering phase. Use it to identify exactly where your render time is going — whether it's waiting for a Chromium instance, navigating to a URL, executing JavaScript, or the actual PDF generation.
+
+## Header format
+
+```http
+Server-Timing:
+  compile;dur=8.2,
+  acquire;dur=3.1,
+  navigate;dur=45.8,
+  setContent;dur=0.0,
+  waitForSelector;dur=0.0,
+  delay;dur=0.0,
+  javascript;dur=0.0,
+  render;dur=112.4,
+  release;dur=1.2,
+  total;dur=170.7
+```
+
+Each entry follows the W3C `Server-Timing` format: `<phase>;dur=<milliseconds>`. Values are floating-point milliseconds.
+
+## Phase reference
+
+| Phase | Description |
+|---|---|
+| `compile` | Handlebars template compilation and data injection |
+| `acquire` | Time waiting to acquire a Chromium instance from the pool |
+| `navigate` | Navigation to URL (URL→PDF mode) or `about:blank` setup |
+| `setContent` | Loading HTML content into the page (`page.setContent`) |
+| `waitForSelector` | Waiting for the CSS selector passed in `waitForSelector` param |
+| `delay` | Fixed delay from the `delay` param |
+| `javascript` | Execution of the `javascript` param |
+| `render` | Chromium PDF generation (`page.pdf`) |
+| `release` | Releasing the Chromium instance back to the pool |
+| `total` | Wall-clock total from request received to response sent |
+
+Phases that don't apply to a given render (e.g. `waitForSelector` when no selector is set) appear with `dur=0.0`.
+
+## Diagnosing slow renders
+
+Use the phase breakdown to identify the bottleneck:
+
+| High phase | Likely cause | What to do |
+|---|---|---|
+| `acquire` | All Chromium instances busy | Reduce concurrency, or upgrade plan for higher concurrent limit |
+| `compile` | Large Handlebars template | Pre-compile templates; reduce template complexity |
+| `navigate` | Slow external URL (URL→PDF mode) | Target server is slow; check network path |
+| `setContent` | Large HTML payload | Minify HTML, compress inline images, strip unused CSS |
+| `javascript` | Complex or slow JS | Simplify scripts; avoid network calls in JS |
+| `waitForSelector` | Element never appears or appears late | Ensure JS sets the element reliably; add a fallback timeout |
+| `delay` | Unnecessary fixed delay | Replace with `waitForSelector` — it fires as soon as the element is ready |
+| `render` | Complex layout, many pages | Simplify CSS, reduce page count, avoid deeply nested DOM |
+
+<Tip>
+  `render` dominating total time is expected for complex documents. If
+  `acquire` is consistently high (> 20 ms), you're hitting the concurrency
+  limit and renders are queuing — the fix is concurrency management on your
+  side or a plan upgrade.
+</Tip>
+
+## Reading phases in the SDKs
+
+All three SDKs parse `Server-Timing` into `meta.phases` — a map from phase name to duration in milliseconds.
+
+<Tabs>
+  <Tab title="Node">
+    ```ts
+    import Rendio from "rendio";
+
+    const rendio = new Rendio();
+
+    const pdf = await rendio.pdfs.create({
+      html: "<h1>Report</h1>",
+      pageSize: "A4",
+    });
+
+    const { phases } = pdf.meta;
+    console.log(`compile:  ${phases.compile} ms`);
+    console.log(`acquire:  ${phases.acquire} ms`);
+    console.log(`render:   ${phases.render} ms`);
+    console.log(`total:    ${phases.total} ms`);
+
+    // Log all phases
+    for (const [phase, dur] of Object.entries(phases)) {
+      if (dur > 0) console.log(`${phase}: ${dur} ms`);
+    }
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import rendio
+
+    client = rendio.Rendio()
+
+    pdf = client.pdfs.create(html="<h1>Report</h1>", page_size="A4")
+
+    phases = pdf.meta.phases
+    print(f"compile:  {phases['compile']} ms")
+    print(f"acquire:  {phases['acquire']} ms")
+    print(f"render:   {phases['render']} ms")
+    print(f"total:    {phases['total']} ms")
+
+    # Log all phases with non-zero duration
+    for phase, dur in phases.items():
+        if dur > 0:
+            print(f"{phase}: {dur} ms")
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    pdf, err := client.Pdfs.Create(ctx, rendio.PdfCreateParams{
+        HTML:     "<h1>Report</h1>",
+        PageSize: rendio.PageSizeA4,
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    phases := pdf.Meta.Phases
+    fmt.Printf("compile:  %.1f ms\n", phases["compile"])
+    fmt.Printf("acquire:  %.1f ms\n", phases["acquire"])
+    fmt.Printf("render:   %.1f ms\n", phases["render"])
+    fmt.Printf("total:    %.1f ms\n", phases["total"])
+
+    // Log all phases with non-zero duration
+    for phase, dur := range phases {
+        if dur > 0 {
+            fmt.Printf("%s: %.1f ms\n", phase, dur)
+        }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## OpenTelemetry integration
+
+When OpenTelemetry is configured in your application, the SDKs emit a span event for each non-zero phase on the parent `rendio.pdfs.create` span. Events are named `rendio.phase.{name}` and carry a `dur_ms` attribute (float64, milliseconds).
+
+```
+rendio.pdfs.create
+  └── event: rendio.phase.compile   dur_ms=8.2
+  └── event: rendio.phase.acquire   dur_ms=3.1
+  └── event: rendio.phase.navigate  dur_ms=45.8
+  └── event: rendio.phase.render    dur_ms=112.4
+  └── event: rendio.phase.total     dur_ms=170.7
+```
+
+In your APM (Honeycomb, Datadog, Jaeger), these events are visible as a timeline within the `rendio.pdfs.create` span. See [OpenTelemetry](/sdks/opentelemetry) for setup.
+
+## Dashboard waterfall
+
+The [render inspector](/account/dashboard#render-inspector) in the dashboard visualizes these same phases as a horizontal waterfall. Click any row in the Renders tab to see the breakdown graphically — useful when you want to explore timing without adding logging code.

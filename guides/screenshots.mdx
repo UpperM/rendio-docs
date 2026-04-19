@@ -8,17 +8,44 @@ same SDK method, just set `output: "png"` or `"jpeg"`.
 
 ## Quick start
 
-```ts
-import { writeFileSync } from "node:fs";
+<Tabs>
+  <Tab title="Node">
+    ```ts
+    import { writeFileSync } from "node:fs";
 
-const result = await rendio.pdfs.create({
-  html: "<h1>Hello world</h1>",
-  output: "png",
-  response: "buffer",
-});
+    const result = await rendio.pdfs.create({
+      html: "<h1>Hello world</h1>",
+      output: "png",
+      response: "buffer",
+    });
 
-writeFileSync("screenshot.png", Buffer.from(result.buffer));
-```
+    writeFileSync("screenshot.png", Buffer.from(result.buffer));
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    result = client.pdfs.create(
+        html="<h1>Hello world</h1>",
+        output="png",
+        response="buffer",
+    )
+
+    with open("screenshot.png", "wb") as f:
+        f.write(result.buffer)
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    result, err := client.Pdfs.CreateBuffer(ctx, rendio.PdfCreateParams{
+        HTML:   "<h1>Hello world</h1>",
+        Output: rendio.OutputPNG,
+    })
+    if err != nil { log.Fatal(err) }
+
+    os.WriteFile("screenshot.png", result.Buffer, 0644)
+    ```
+  </Tab>
+</Tabs>
 
 ## Formats
 
@@ -31,16 +58,43 @@ writeFileSync("screenshot.png", Buffer.from(result.buffer));
 
 Same controls as PDFs — `pageSize`, or `width` + `height`:
 
-```ts
-// Open Graph image
-await rendio.pdfs.create({
-  html: ogCardHtml,
-  output: "png",
-  width: "1200px",
-  height: "630px",
-  response: "buffer",
-});
-```
+<Tabs>
+  <Tab title="Node">
+    ```ts
+    // Open Graph image
+    await rendio.pdfs.create({
+      html: ogCardHtml,
+      output: "png",
+      width: "1200px",
+      height: "630px",
+      response: "buffer",
+    });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    # Open Graph image
+    result = client.pdfs.create(
+        html=og_card_html,
+        output="png",
+        width="1200px",
+        height="630px",
+        response="buffer",
+    )
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    // Open Graph image
+    result, err := client.Pdfs.CreateBuffer(ctx, rendio.PdfCreateParams{
+        HTML:   ogCardHTML,
+        Output: rendio.OutputPNG,
+        Width:  "1200px",
+        Height: "630px",
+    })
+    ```
+  </Tab>
+</Tabs>
 
 Common dimensions:
 
@@ -56,18 +110,53 @@ Common dimensions:
 Like PDFs, backgrounds are stripped by default. Set `printBackground: true`
 to keep `background-color`, gradients, and background images:
 
-```ts
-await rendio.pdfs.create({
-  html: `
-    <div style="background: linear-gradient(135deg, #667eea, #764ba2); padding: 100px; color: white;">
-      <h1>Gradient</h1>
-    </div>
-  `,
-  output: "png",
-  printBackground: true,
-  response: "buffer",
-});
-```
+<Tabs>
+  <Tab title="Node">
+    ```ts
+    await rendio.pdfs.create({
+      html: `
+        <div style="background: linear-gradient(135deg, #667eea, #764ba2); padding: 100px; color: white;">
+          <h1>Gradient</h1>
+        </div>
+      `,
+      output: "png",
+      printBackground: true,
+      response: "buffer",
+    });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    html = """
+        <div style="background: linear-gradient(135deg, #667eea, #764ba2); padding: 100px; color: white;">
+          <h1>Gradient</h1>
+        </div>
+    """
+
+    result = client.pdfs.create(
+        html=html,
+        output="png",
+        print_background=True,
+        response="buffer",
+    )
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    html := `
+        <div style="background: linear-gradient(135deg, #667eea, #764ba2); padding: 100px; color: white;">
+          <h1>Gradient</h1>
+        </div>
+    `
+
+    result, err := client.Pdfs.CreateBuffer(ctx, rendio.PdfCreateParams{
+        HTML:            html,
+        Output:          rendio.OutputPNG,
+        PrintBackground: rendio.Bool(true),
+    })
+    ```
+  </Tab>
+</Tabs>
 
 <Warning>
   Without `printBackground: true`, backgrounds render as white (JPEG) or
@@ -80,15 +169,40 @@ Screenshots capture one "page" at the configured dimensions. For tall
 content either set `height` explicitly or use PDF output (which handles
 multi-page naturally):
 
-```ts
-await rendio.pdfs.create({
-  html: longContentHtml,
-  output: "png",
-  width: "800px",
-  height: "2400px",
-  response: "buffer",
-});
-```
+<Tabs>
+  <Tab title="Node">
+    ```ts
+    await rendio.pdfs.create({
+      html: longContentHtml,
+      output: "png",
+      width: "800px",
+      height: "2400px",
+      response: "buffer",
+    });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    result = client.pdfs.create(
+        html=long_content_html,
+        output="png",
+        width="800px",
+        height="2400px",
+        response="buffer",
+    )
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    result, err := client.Pdfs.CreateBuffer(ctx, rendio.PdfCreateParams{
+        HTML:   longContentHTML,
+        Output: rendio.OutputPNG,
+        Width:  "800px",
+        Height: "2400px",
+    })
+    ```
+  </Tab>
+</Tabs>
 
 ## Open-Graph generator pattern
 
@@ -127,7 +241,7 @@ JSON-only API gateways), set `encode: "base64"` — the API returns a JSON
 envelope with the image as a base64 string instead of raw bytes:
 
 ```bash
-curl https://api.rendio.dev/v1/render \
+curl https://rendio.dev/api/v1/render \
   -H "Authorization: Bearer $RENDIO_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"html":"<h1>Hi</h1>","output":"png","encode":"base64","response":"buffer"}'

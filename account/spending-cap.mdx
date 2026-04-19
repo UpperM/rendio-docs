@@ -1,0 +1,111 @@
+---
+title: "Spending Cap & Overage"
+description: "Allow renders beyond your monthly quota at €0.01/render, with an optional EUR cap to control costs."
+---
+
+By default, renders stop when you hit your monthly quota and the API returns `429 quota_exceeded`. Starter and Pro plans can opt into **overage** — paying €0.01 per render beyond the quota — with an optional **spending cap** to set a hard cost ceiling.
+
+<Note>
+  Overage is not available on the Free plan. Free plan accounts always hard-stop
+  at 100 renders per month.
+</Note>
+
+## How overage works
+
+Overage is **opt-in** and disabled by default. Enable it in **Dashboard → Settings → Billing**.
+
+| Configuration | Behavior at quota limit |
+|---|---|
+| Overage disabled (default) | `429 quota_exceeded` — renders stop |
+| Overage enabled, no cap | Renders continue at €0.01/render, billed at next cycle |
+| Overage enabled, cap set | Renders continue until cap amount is reached, then `429 quota_exceeded` |
+
+Overage is billed at the end of your billing period alongside your base subscription, via Paddle.
+
+## Setting a spending cap
+
+1. Go to **Dashboard → Settings → Billing**.
+2. Toggle **Allow overage** on.
+3. Optionally enter a **monthly cap** in EUR. For example, a €5 cap allows up to 500 overage renders.
+4. Save.
+
+The cap is a hard ceiling on overage charges for a single billing period. Once the cap is reached, renders return `429 quota_exceeded` until the period resets.
+
+<Warning>
+  Setting no cap means unlimited overage. If your application has a bug that
+  triggers runaway render calls, you will be billed for all of them. Always
+  set a cap when you first enable overage.
+</Warning>
+
+## Handling QuotaExceededError
+
+Whether overage is disabled or the cap has been reached, the API returns the same `429 quota_exceeded` error. Handle it explicitly — retrying won't help:
+
+<Tabs>
+  <Tab title="Node">
+    ```ts
+    import Rendio, { QuotaExceededError } from "rendio";
+
+    const rendio = new Rendio();
+
+    try {
+      const pdf = await rendio.pdfs.create({ html });
+      return pdf.url;
+    } catch (err) {
+      if (err instanceof QuotaExceededError) {
+        // Do not retry — quota is exhausted or cap is reached
+        // Alert your team; a human decision is needed (upgrade, wait, or disable)
+        throw new Error("Rendio quota exhausted — pausing render queue");
+      }
+      throw err;
+    }
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    from rendio import QuotaExceededError
+
+    try:
+        pdf = client.pdfs.create(html=html)
+        return pdf.url
+    except QuotaExceededError:
+        # Do not retry — quota is exhausted or cap is reached
+        raise RuntimeError("Rendio quota exhausted — pausing render queue")
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    pdf, err := client.Pdfs.Create(ctx, rendio.PdfCreateParams{HTML: html})
+    if err != nil {
+        var quota *rendio.QuotaExceededError
+        if errors.As(err, &quota) {
+            // Do not retry — quota is exhausted or cap is reached
+            return "", fmt.Errorf("rendio quota exhausted — pausing render queue")
+        }
+        return "", err
+    }
+    ```
+  </Tab>
+</Tabs>
+
+See [Error Handling](/sdks/error-handling) for the full typed error hierarchy.
+
+## Email notifications
+
+Rendio sends email alerts before and when limits are hit:
+
+- **80% quota warning** — sent once per billing period when you reach 80% of your monthly quota
+- **Quota reached (100%)** — sent when renders start being blocked
+- **Spending cap reached** — sent when overage charges reach your configured cap
+
+See [Email Notifications](/account/email-notifications) for the full list of notification emails.
+
+## Prices
+
+All amounts are in **EUR excluding VAT**. Paddle calculates and collects VAT at checkout based on your billing location.
+
+| | Starter | Pro |
+|---|---|---|
+| Monthly price | €19/mo | €49/mo |
+| Annual price | €190/yr (~17% off) | €490/yr (~17% off) |
+| Overage rate | €0.01/render | €0.01/render |

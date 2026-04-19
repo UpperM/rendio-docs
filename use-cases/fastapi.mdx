@@ -1,0 +1,313 @@
+---
+title: "FastAPI"
+description: "Async PDF generation endpoints in a FastAPI application."
+---
+
+Add PDF endpoints to a FastAPI server with proper async lifecycle
+management, error handling, and concurrency control.
+
+## Setup
+
+```bash
+pip install rendio fastapi uvicorn
+```
+
+```bash
+export RENDIO_API_KEY=rk_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+## Client lifecycle
+
+Use FastAPI's `lifespan` protocol to manage the `AsyncRendio` connection
+pool. Do not create the client at module scope — it leaks the underlying
+`httpx.AsyncClient` on shutdown.
+
+```python
+# app.py
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+
+import rendio
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    app.state.rendio = rendio.AsyncRendio()
+    yield
+    await app.state.rendio.aclose()
+
+app = FastAPI(lifespan=lifespan)
+```
+
+## Dependency injection
+
+Use a FastAPI dependency to access the client from route handlers.
+
+```python
+# deps.py
+from fastapi import Request
+
+import rendio
+
+async def get_rendio(request: Request) -> rendio.AsyncRendio:
+    return request.app.state.rendio
+```
+
+## URL mode (return a CDN link)
+
+```python
+# routes/pdf.py
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+
+import rendio
+from rendio import (
+    AuthenticationError,
+    ValidationError,
+    QuotaExceededError,
+    PlanLimitError,
+    TimeoutError as RendioTimeoutError,
+    RenderFailedError,
+    RendioError,
+)
+
+from deps import get_rendio
+
+router = APIRouter()
+
+class PdfRequest(BaseModel):
+    html: str
+    data: dict | None = None
+    page_size: str = "A4"
+
+@router.post("/generate-pdf")
+async def generate_pdf(
+    body: PdfRequest,
+    client: rendio.AsyncRendio = Depends(get_rendio),
+):
+    try:
+        pdf = await client.pdfs.create(
+            html=body.html,
+            data=body.data,
+            page_size=body.page_size,
+        )
+        return {
+            "id": pdf.id,
+            "url": pdf.url,
+            "pages": pdf.pages,
+            "size": pdf.size,
+            "expires_at": pdf.expires_at,
+        }
+    except AuthenticationError:
+        raise HTTPException(status_code=500, detail="PDF service unavailable")
+    except ValidationError as err:
+        raise HTTPException(status_code=400, detail={"error": err.message, "code": err.code})
+    except QuotaExceededError as err:
+        raise HTTPException(status_code=503, detail={"error": "Rendio quota exhausted", "code": err.code})
+    except PlanLimitError as err:
+        raise HTTPException(
+            status_code=402,
+            detail={"error": f'Feature "{err.feature}" requires a higher plan', "code": err.code},
+        )
+    except RenderFailedError as err:
+        raise HTTPException(status_code=502, detail={"error": err.message, "code": err.code})
+    except RendioTimeoutError:
+        raise HTTPException(status_code=504, detail="Render timed out")
+    except RendioError as err:
+        print("[rendio]", {"code": err.code, "request_id": err.request_id, "trace_id": err.trace_id})
+        raise HTTPException(status_code=err.status_code or 500, detail={"error": err.message, "code": err.code})
+```
+
+```python
+# app.py (continued)
+from routes.pdf import router as pdf_router
+
+app.include_router(pdf_router, prefix="/api")
+```
+
+## Test
+
+```bash
+curl -X POST http://localhost:8000/api/generate-pdf \
+  -H "Content-Type: application/json" \
+  -d '{"html":"<h1>Invoice #2026-042</h1>","page_size":"A4"}'
+```
+
+```json
+{
+  "id": "rd_abc1234567890def",
+  "url": "https://cdn.rendio.dev/f/rd_abc1234567890def.pdf",
+  "pages": 1,
+  "size": 38400,
+  "expires_at": "2026-04-20T12:00:00.000Z"
+}
+```
+
+## Buffer mode (stream PDF bytes)
+
+When you want to send raw PDF bytes directly to the client, add this
+handler to the same `routes/pdf.py` router:
+
+```python
+from fastapi.responses import Response
+
+@router.post("/invoice.pdf")
+async def invoice_pdf(
+    body: PdfRequest,
+    client: rendio.AsyncRendio = Depends(get_rendio),
+):
+    try:
+        result = await client.pdfs.create(
+            html=body.html,
+            page_size=body.page_size,
+            response="buffer",
+        )
+        return Response(
+            content=result.buffer,
+            media_type="application/pdf",
+            headers={"Content-Disposition": 'attachment; filename="invoice.pdf"'},
+        )
+    except RendioError as err:
+        raise HTTPException(
+            status_code=err.status_code or 500,
+            detail={"error": err.message, "code": err.code},
+        )
+```
+
+## Batch rendering with concurrency control
+
+When rendering many PDFs at once (e.g. monthly invoices), use
+`asyncio.Semaphore` to stay within your plan's concurrent request limit
+and avoid `concurrent_limit_exceeded` errors.
+
+```python
+import asyncio
+import logging
+
+import rendio
+from rendio import (
+    ConcurrentLimitError,
+    QuotaExceededError,
+    RendioError,
+)
+
+logger = logging.getLogger(__name__)
+
+async def render_batch(
+    client: rendio.AsyncRendio,
+    items: list[dict],
+    *,
+    max_concurrent: int = 5,
+) -> list[dict]:
+    """Render a batch of PDFs with bounded concurrency.
+
+    Set max_concurrent at or below your plan's concurrent limit
+    (Free: 2, Starter: 5, Pro: 20) to avoid 429s.
+    """
+    semaphore = asyncio.Semaphore(max_concurrent)
+
+    async def render_one(item: dict) -> dict:
+        async with semaphore:
+            try:
+                pdf = await client.pdfs.create(
+                    html=item["html"],
+                    data=item.get("data"),
+                    page_size=item.get("page_size", "A4"),
+                )
+                return {"id": item["id"], "url": pdf.url, "status": "ok"}
+            except ConcurrentLimitError as err:
+                # Server-side concurrency limit hit despite semaphore —
+                # wait the requested duration and retry once.
+                if err.retry_after:
+                    await asyncio.sleep(err.retry_after)
+                    pdf = await client.pdfs.create(
+                        html=item["html"],
+                        data=item.get("data"),
+                        page_size=item.get("page_size", "A4"),
+                    )
+                    return {"id": item["id"], "url": pdf.url, "status": "ok"}
+                return {"id": item["id"], "error": err.code, "status": "error"}
+            except QuotaExceededError as err:
+                return {"id": item["id"], "error": err.code, "status": "error"}
+            except RendioError as err:
+                logger.error(
+                    "Render failed for %s: [%s] %s (request %s)",
+                    item["id"], err.code, err.message, err.request_id,
+                )
+                return {"id": item["id"], "error": err.code, "status": "error"}
+
+    tasks = [asyncio.create_task(render_one(item)) for item in items]
+    results = await asyncio.gather(*tasks)
+    return list(results)
+```
+
+Wire it to an endpoint:
+
+```python
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+
+import rendio
+
+from deps import get_rendio
+
+router = APIRouter()
+
+class BatchItem(BaseModel):
+    id: str
+    html: str
+    data: dict | None = None
+    page_size: str = "A4"
+
+class BatchRequest(BaseModel):
+    items: list[BatchItem]
+    max_concurrent: int = 5
+
+@router.post("/batch")
+async def batch_render(
+    body: BatchRequest,
+    client: rendio.AsyncRendio = Depends(get_rendio),
+):
+    if len(body.items) > 100:
+        raise HTTPException(status_code=400, detail="Maximum 100 items per batch")
+
+    results = await render_batch(
+        client,
+        [item.model_dump() for item in body.items],
+        max_concurrent=body.max_concurrent,
+    )
+    return {"results": results, "total": len(results)}
+```
+
+## Full app
+
+```python
+# app.py
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+
+import rendio
+
+from routes.pdf import router as pdf_router
+from routes.batch import router as batch_router
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    app.state.rendio = rendio.AsyncRendio()
+    yield
+    await app.state.rendio.aclose()
+
+app = FastAPI(lifespan=lifespan)
+app.include_router(pdf_router, prefix="/api")
+app.include_router(batch_router, prefix="/api")
+```
+
+```bash
+uvicorn app:app --host 0.0.0.0 --port 8000
+```
+
+<Tip>
+  Instantiate `AsyncRendio` once in the `lifespan` handler, not per
+  request. This keeps `httpx.AsyncClient` connections warm and avoids
+  per-request setup cost.
+</Tip>

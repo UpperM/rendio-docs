@@ -49,7 +49,7 @@ Include your key in the `Authorization` header with a `Bearer` prefix:
 <Tabs>
   <Tab title="curl">
     ```bash
-    curl https://api.rendio.dev/v1/render \
+    curl https://rendio.dev/api/v1/render \
       -H "Authorization: Bearer rk_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
       -H "Content-Type: application/json" \
       -d '{"html":"<h1>Hello</h1>"}'
@@ -168,7 +168,7 @@ Use it for development loops, CI smoke tests, or any case where you want to
 exercise the real rendering path without burning quota:
 
 ```bash
-curl https://api.rendio.dev/v1/render \
+curl https://rendio.dev/api/v1/render \
   -H "Authorization: Bearer $RENDIO_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"html":"<h1>Preview</h1>","preview":true,"response":"buffer"}' \

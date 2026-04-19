@@ -60,7 +60,7 @@ pass an explicit key:
   </Tab>
   <Tab title="curl">
     ```bash
-    curl https://api.rendio.dev/v1/render \
+    curl https://rendio.dev/api/v1/render \
       -H "Authorization: Bearer $RENDIO_API_KEY" \
       -H "Idempotency-Key: invoice-8F27-v3" \
       -H "Content-Type: application/json" \
@@ -71,13 +71,16 @@ pass an explicit key:
 
 ## Scope and storage
 
+<Warning>
+**URL mode only.** Idempotency keys are silently ignored on `response: "buffer"`
+and `preview: true` requests. If you add an `Idempotency-Key` to a buffer-mode
+request, no deduplication occurs and no error is returned.
+</Warning>
+
 - Keys must match `[A-Za-z0-9_-]{1,255}`.
 - Keys are **scoped per API key** — different API keys can reuse the same
   string without collision.
 - Responses are cached for **24 hours** from the first successful render.
-- Only `response: "url"` requests support idempotency. Buffer-mode requests
-  return bytes directly and are not cached.
-- Preview-mode requests (`preview: true`) do not support idempotency.
 
 ## Replays
 
@@ -95,10 +98,17 @@ fresh per request — only the response body and headers are cached.
 | Key violates format (`[A-Za-z0-9_-]{1,255}`) | 400 | `validation_error` |
 
 **"Same body"** is determined by hashing the exact bytes of the request
-body. If your client serializes JSON with different key ordering between
-retries, the hash differs and you get `idempotency_conflict`. The official
-SDKs keep the body stable across retries, so this only bites when you
-construct requests manually.
+body.
+
+<Warning>
+If you construct requests manually (curl, `fetch`, `requests`), the JSON
+body must be **byte-identical** across retries. Different key ordering,
+whitespace, or formatting produces a different hash and triggers
+`idempotency_conflict`. For example, `{"html":"...","pageSize":"A4"}` and
+`{"pageSize":"A4","html":"..."}` are treated as different bodies.
+
+The official SDKs keep the body stable across retries automatically.
+</Warning>
 
 ## Choosing keys
 

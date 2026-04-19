@@ -1,0 +1,111 @@
+---
+title: "Dashboard & API Keys"
+description: "What you see after sign-in, how to manage API keys, explore usage, and inspect renders."
+---
+
+Sign in at [rendio.dev/dashboard](https://rendio.dev/dashboard) with GitHub, Google, or a magic link email. Once in, the dashboard is organized into four tabs: **Renders**, **Keys**, **Usage**, and **Settings**.
+
+## Renders tab
+
+The Renders tab shows your recent render history. Each row displays:
+
+- **Timestamp** — when the render was requested
+- **Mode** — `html`, `url`, or `template`
+- **Pages** and **size** of the output PDF
+- **Render time** in milliseconds
+- **Status** — success or error code
+
+Click any row to open the **render inspector**.
+
+### Render inspector
+
+The inspector shows the full metadata for a single render:
+
+| Field | Description |
+|---|---|
+| **Request ID** | Unique identifier — include this when contacting support |
+| **Pages** | Number of pages in the output |
+| **Size** | File size in KB |
+| **Render time** | Total server-side duration (ms) |
+| **Pool hit** | Whether a warm Chromium instance was reused |
+| **Chromium version** | Exact browser version used |
+| **Preview** | Whether this was a watermarked preview render |
+
+Below the metadata, the **waterfall** panel shows per-phase timing — the same data available from the `Server-Timing` response header. See [Server-Timing & Render Phases](/guides/server-timing) for an explanation of each phase.
+
+From the inspector you can:
+
+- **Download the PDF** (available while within the retention window)
+- **Copy the CDN URL** to the clipboard
+- **View response headers** including `X-Rendio-Request-Id` and `Server-Timing`
+
+<Note>
+  PDFs are deleted after the retention window (24 hours on Free, 30 days on
+  paid plans). After that, the download button is disabled and the CDN URL
+  returns `404`.
+</Note>
+
+## Keys tab
+
+### Creating an API key
+
+1. Click **Create API Key**.
+2. Give the key a descriptive name — use something that identifies the workload, such as `prod-billing-service` or `staging-pdf-worker`.
+3. Click **Create**.
+4. **Copy the key now.** The full value is shown **exactly once**. After you close the dialog, only the `rk_live_` prefix and the last 4 characters are visible.
+
+<Warning>
+  API keys are shown once and never again. If you lose a key, revoke it and
+  create a new one.
+</Warning>
+
+### Key format
+
+All keys start with `rk_live_` followed by a long random secret. Pass the full string — prefix included — as your bearer token.
+
+### Revoking a key
+
+Click the trash icon next to any key to revoke it immediately. All in-flight requests using that key will complete; new requests will receive `401 invalid_api_key`.
+
+Rotate keys by creating a new one, updating your environment, deploying, confirming traffic has switched, then revoking the old key. See [Authentication](/authentication#key-rotation) for the full rotation workflow.
+
+### How many keys to create
+
+One key per workload. If a key is ever compromised, you can revoke it without affecting other services.
+
+## Usage tab
+
+The Usage tab shows a chart of successful render counts over time. Use the range selector to switch between **7 days**, **30 days**, and **90 days**.
+
+You can filter the chart by:
+
+- **All renders** — production + preview combined
+- **Production only** — renders with `preview: false` (quota-consuming)
+- **Preview only** — watermarked renders that don't count against quota
+
+The total for the current billing period is shown above the chart, next to your plan's monthly quota. When overage is enabled, the chart also shows an overage indicator once you've exceeded the base quota.
+
+<Tip>
+  If the chart shows an unexpected spike, use the Renders tab to drill into
+  specific timestamps and identify the source.
+</Tip>
+
+## Settings tab
+
+### Profile
+
+Update your display name and the email address that receives [billing and notification emails](/account/email-notifications).
+
+### Billing
+
+View your current plan, next billing date, and a link to the Paddle billing portal for payment method management. To change plans, click **Upgrade** or **Downgrade** — upgrades apply immediately, downgrades take effect at the end of the current billing period.
+
+See [Plans & Quotas](/concepts/plans-and-quotas) for a full comparison of what each plan includes, and [Spending Cap & Overage](/account/spending-cap) for opt-in overage configuration.
+
+### Danger zone
+
+**Delete account** permanently removes your account, all API keys, and all stored render files. This cannot be undone.
+
+## Sign-in methods
+
+Rendio supports GitHub, Google, and magic link (passwordless email). You can link multiple providers to the same account from Settings → Profile. See [Authentication](/authentication) for API key usage.

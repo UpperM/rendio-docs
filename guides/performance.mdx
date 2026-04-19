@@ -3,8 +3,7 @@ title: "Performance"
 description: "Where render time goes and how to shave it."
 ---
 
-Most Rendio renders complete in under 300&nbsp;ms when the Chromium pool is
-warm. The long tail is driven almost entirely by how your HTML is written
+Most business documents render in under 100&nbsp;ms when the Chromium pool is warm. Complex or large templates take longer — see [Benchmarks](/resources/benchmarks) for detailed numbers. The long tail is driven almost entirely by how your HTML is written
 — the knobs below are where you'll see the biggest gains.
 
 ## Quick wins
@@ -28,19 +27,59 @@ warm. The long tail is driven almost entirely by how your HTML is written
 
 Pick the **loosest** value that still gives you a complete render:
 
-```ts
-// Pure inline HTML, no external refs → commit
-await rendio.pdfs.create({ html: "<h1>Hi</h1>", waitUntil: "commit" });
+<Tabs>
+  <Tab title="Node">
+    ```ts
+    // Pure inline HTML, no external refs → commit
+    await rendio.pdfs.create({ html: "<h1>Hi</h1>", waitUntil: "commit" });
 
-// Most templates (inline CSS, base64 images) → default is fine
-await rendio.pdfs.create({ html });
+    // Most templates (inline CSS, base64 images) → default is fine
+    await rendio.pdfs.create({ html });
 
-// External images, fonts, stylesheets → load
-await rendio.pdfs.create({ html: `<img src="https://…">`, waitUntil: "load" });
+    // External images, fonts, stylesheets → load
+    await rendio.pdfs.create({ html: `<img src="https://…">`, waitUntil: "load" });
 
-// Async JS (Chart.js fetching data) → networkidle
-await rendio.pdfs.create({ html, javascript, waitUntil: "networkidle" });
-```
+    // Async JS (Chart.js fetching data) → networkidle
+    await rendio.pdfs.create({ html, javascript, waitUntil: "networkidle" });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    # Pure inline HTML, no external refs → commit
+    client.pdfs.create(html="<h1>Hi</h1>", wait_until="commit")
+
+    # Most templates (inline CSS, base64 images) → default is fine
+    client.pdfs.create(html=html)
+
+    # External images, fonts, stylesheets → load
+    client.pdfs.create(html='<img src="https://…">', wait_until="load")
+
+    # Async JS (Chart.js fetching data) → networkidle
+    client.pdfs.create(html=html, javascript=javascript, wait_until="networkidle")
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    // Pure inline HTML, no external refs → commit
+    client.Pdfs.Create(ctx, rendio.PdfCreateParams{
+        HTML: "<h1>Hi</h1>", WaitUntil: rendio.WaitUntilCommit,
+    })
+
+    // Most templates (inline CSS, base64 images) → default is fine
+    client.Pdfs.Create(ctx, rendio.PdfCreateParams{HTML: html})
+
+    // External images, fonts, stylesheets → load
+    client.Pdfs.Create(ctx, rendio.PdfCreateParams{
+        HTML: `<img src="https://…">`, WaitUntil: rendio.WaitUntilLoad,
+    })
+
+    // Async JS (Chart.js fetching data) → networkidle
+    client.Pdfs.Create(ctx, rendio.PdfCreateParams{
+        HTML: html, JavaScript: js, WaitUntil: rendio.WaitUntilNetworkIdle,
+    })
+    ```
+  </Tab>
+</Tabs>
 
 ## Images
 
@@ -101,26 +140,72 @@ Minify HTML, strip unused CSS, avoid inline large assets.
 Prefer `waitForSelector` over `delay` — it's tight, `delay` always waits
 the full duration even when content is ready.
 
-```ts
-// Best: wait until a specific element signals readiness
-await rendio.pdfs.create({
-  html: `<div id="chart"></div><script>/* sets class="ready" */</script>`,
-  waitForSelector: ".ready",
-});
+<Tabs>
+  <Tab title="Node">
+    ```ts
+    // Best: wait until a specific element signals readiness
+    await rendio.pdfs.create({
+      html: `<div id="chart"></div><script>/* sets class="ready" */</script>`,
+      waitForSelector: ".ready",
+    });
 
-// Last resort
-await rendio.pdfs.create({ html, delay: 500 });
-```
+    // Last resort
+    await rendio.pdfs.create({ html, delay: 500 });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    # Best: wait until a specific element signals readiness
+    client.pdfs.create(
+        html='<div id="chart"></div><script>/* sets class="ready" */</script>',
+        wait_for_selector=".ready",
+    )
+
+    # Last resort
+    client.pdfs.create(html=html, delay=500)
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    // Best: wait until a specific element signals readiness
+    client.Pdfs.Create(ctx, rendio.PdfCreateParams{
+        HTML:            `<div id="chart"></div><script>/* sets class="ready" */</script>`,
+        WaitForSelector: ".ready",
+    })
+
+    // Last resort
+    client.Pdfs.Create(ctx, rendio.PdfCreateParams{HTML: html, Delay: 500})
+    ```
+  </Tab>
+</Tabs>
 
 ## Measuring
 
 Every response carries timing metadata:
 
-```ts
-const pdf = await rendio.pdfs.create({ html });
-console.log(`server render: ${pdf.meta.renderTimeMs} ms`);
-console.log(`size: ${(pdf.size / 1024).toFixed(1)} KB`);
-```
+<Tabs>
+  <Tab title="Node">
+    ```ts
+    const pdf = await rendio.pdfs.create({ html });
+    console.log(`server render: ${pdf.meta.renderTimeMs} ms`);
+    console.log(`size: ${(pdf.size / 1024).toFixed(1)} KB`);
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    pdf = client.pdfs.create(html=html)
+    print(f"server render: {pdf.meta.render_time_ms} ms")
+    print(f"size: {pdf.size / 1024:.1f} KB")
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    pdf, err := client.Pdfs.Create(ctx, rendio.PdfCreateParams{HTML: html})
+    fmt.Printf("server render: %d ms\n", pdf.Meta.RenderTimeMs)
+    fmt.Printf("size: %.1f KB\n", float64(pdf.Size)/1024)
+    ```
+  </Tab>
+</Tabs>
 
 In buffer mode, inspect `X-Render-Time-Ms` and `Server-Timing` response
 headers for per-phase breakdown (`pool`, `render`, `upload`).

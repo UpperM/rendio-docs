@@ -60,40 +60,137 @@ Expected:
 [rendio.pdfs.create]          rendio.mode=html    rendio.pages=1   rendio.size_bytes=14832
 ```
 
+## Go setup
+
+The Go SDK does not import `opentelemetry-go` directly. It defines a
+minimal `Tracer` / `Span` interface — you inject an adapter via `WithTracer`.
+
+```go
+// The interfaces you need to implement:
+type Tracer interface {
+    StartSpan(ctx context.Context, name string) (Span, context.Context)
+}
+
+type Span interface {
+    SetStatus(ok bool, msg string)
+    SetAttribute(key string, value any)
+    AddEvent(name string, attrs map[string]any)
+    RecordError(err error)
+    End()
+    TraceParent() string
+}
+```
+
+Wire it up at client construction:
+
+```go
+client, err := rendio.NewClient(
+    rendio.WithTracer(myOTELAdapter),
+    rendio.WithMeter(myOTELMeterAdapter), // optional — enables metrics
+)
+if err != nil { log.Fatal(err) }
+```
+
+The `Meter` interface:
+
+```go
+type Meter interface {
+    Counter(name, description string) Counter
+    Histogram(name, description, unit string) Histogram
+}
+
+type Counter interface {
+    Add(value int64, attrs map[string]any)
+}
+
+type Histogram interface {
+    Record(value float64, attrs map[string]any)
+}
+```
+
+A full `rendio-go-otel` adapter package is planned. Until then, bridge the
+interfaces above to your `go.opentelemetry.io/otel` providers. See the
+[Go SDK README](https://github.com/rendio/rendio-go#opentelemetry) for a
+complete adapter example.
+
 ## Backends
 
 ### Honeycomb
 
-```ts
-import { NodeSDK } from "@opentelemetry/sdk-node";
-import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
-import { Resource } from "@opentelemetry/resources";
+<Tabs>
+  <Tab title="Node">
+    ```ts
+    import { NodeSDK } from "@opentelemetry/sdk-node";
+    import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
+    import { Resource } from "@opentelemetry/resources";
 
-new NodeSDK({
-  resource: new Resource({ "service.name": "my-service" }),
-  traceExporter: new OTLPTraceExporter({
-    url: "https://api.honeycomb.io/v1/traces",
-    headers: { "x-honeycomb-team": process.env.HONEYCOMB_API_KEY! },
-  }),
-}).start();
-```
+    new NodeSDK({
+      resource: new Resource({ "service.name": "my-service" }),
+      traceExporter: new OTLPTraceExporter({
+        url: "https://api.honeycomb.io/v1/traces",
+        headers: { "x-honeycomb-team": process.env.HONEYCOMB_API_KEY! },
+      }),
+    }).start();
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import os
+    from opentelemetry import trace
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+    from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+    from opentelemetry.sdk.resources import Resource
+
+    provider = TracerProvider(resource=Resource.create({"service.name": "my-service"}))
+    provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(
+        endpoint="https://api.honeycomb.io/v1/traces",
+        headers={"x-honeycomb-team": os.environ["HONEYCOMB_API_KEY"]},
+    )))
+    trace.set_tracer_provider(provider)
+    ```
+  </Tab>
+</Tabs>
 
 ### Datadog (via OTLP)
 
 Agent OTLP receiver must be enabled
 (`DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT`).
 
-```ts
-new NodeSDK({
-  resource: new Resource({
-    "service.name": "my-service",
-    "dd.env": process.env.DD_ENV ?? "production",
-  }),
-  traceExporter: new OTLPTraceExporter({
-    url: `http://${process.env.DD_AGENT_HOST ?? "localhost"}:4318/v1/traces`,
-  }),
-}).start();
-```
+<Tabs>
+  <Tab title="Node">
+    ```ts
+    new NodeSDK({
+      resource: new Resource({
+        "service.name": "my-service",
+        "dd.env": process.env.DD_ENV ?? "production",
+      }),
+      traceExporter: new OTLPTraceExporter({
+        url: `http://${process.env.DD_AGENT_HOST ?? "localhost"}:4318/v1/traces`,
+      }),
+    }).start();
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import os
+    from opentelemetry import trace
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+    from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+    from opentelemetry.sdk.resources import Resource
+
+    provider = TracerProvider(resource=Resource.create({
+        "service.name": "my-service",
+        "dd.env": os.environ.get("DD_ENV", "production"),
+    }))
+    provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(
+        endpoint=f"http://{os.environ.get('DD_AGENT_HOST', 'localhost')}:4318/v1/traces",
+    )))
+    trace.set_tracer_provider(provider)
+    ```
+  </Tab>
+</Tabs>
 
 ### Jaeger (local dev)
 
@@ -101,12 +198,31 @@ new NodeSDK({
 docker run --rm -p 16686:16686 -p 4318:4318 jaegertracing/all-in-one:latest
 ```
 
-```ts
-new NodeSDK({
-  resource: new Resource({ "service.name": "my-service" }),
-  traceExporter: new OTLPTraceExporter({ url: "http://localhost:4318/v1/traces" }),
-}).start();
-```
+<Tabs>
+  <Tab title="Node">
+    ```ts
+    new NodeSDK({
+      resource: new Resource({ "service.name": "my-service" }),
+      traceExporter: new OTLPTraceExporter({ url: "http://localhost:4318/v1/traces" }),
+    }).start();
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    from opentelemetry import trace
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+    from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+    from opentelemetry.sdk.resources import Resource
+
+    provider = TracerProvider(resource=Resource.create({"service.name": "my-service"}))
+    provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(
+        endpoint="http://localhost:4318/v1/traces",
+    )))
+    trace.set_tracer_provider(provider)
+    ```
+  </Tab>
+</Tabs>
 
 Open [http://localhost:16686](http://localhost:16686), select
 `my-service`, find `rendio.pdfs.create`.
@@ -115,15 +231,21 @@ Open [http://localhost:16686](http://localhost:16686), select
 
 ### `rendio.pdfs.create` (SDK span — one per user-level call)
 
-Attributes set by the SDK itself:
+Attributes set by the SDK on the parent span:
 
 | Attribute | Type | When set |
 |---|---|---|
 | `rendio.mode` | `"html" \| "url" \| "template"` | Always (pre-request) |
 | `rendio.output` | `"pdf" \| "png" \| "jpeg"` | Always (pre-request) |
-| `rendio.sdk.version` | string | Always |
-| `http.response.status_code` | int | On response |
-| `error.type` | string | On error |
+| `rendio.sdk.version` | string | Always (e.g. `rendio@1.0.0`, `rendio-go/0.1.0`, `rendio-python@0.1.0`) |
+| `rendio.pages_hint` | int | When `data` keys present (template mode) |
+| `rendio.pages` | int | On success (from response body) |
+| `rendio.size_bytes` | int | On success (from response body) |
+| `rendio.chromium_version` | string | On success (from response headers) |
+| `http.response.status_code` | int | On response (success or error) |
+| `error.type` | string | On error (e.g. `rate_limit`, `timeout`, `validation`, `auth`) |
+
+All three SDKs (Node, Python, Go) emit the full attribute set above.
 
 ### `rendio.pdfs.create.attempt` (SDK span — one per HTTP attempt)
 
@@ -131,6 +253,35 @@ Attributes set by the SDK itself:
 |---|---|---|
 | `http.retry_count` | int | Always (0-indexed) |
 | `http.response.status_code` | int | On response |
+
+### `rendio.pdfs.get` / `rendio.pdfs.get.attempt`
+
+The Go and Python SDKs create spans for `pdfs.get` / `pdfs.Get` calls.
+Attempt spans carry the same `http.retry_count` and
+`http.response.status_code` attributes as create attempts. The Node SDK
+does not currently instrument `pdfs.get`.
+
+### Phase events (Server-Timing)
+
+When the response includes a `Server-Timing` header, the SDK emits span
+events on the parent `rendio.pdfs.create` span. Each phase becomes an event
+named `rendio.phase.{name}` with a `dur_ms` attribute (float, milliseconds).
+All three SDKs emit phase events.
+
+### Metrics
+
+All three SDKs emit three OTEL metric instruments when a `MeterProvider` is
+registered:
+
+| Instrument | Type | Unit | Attributes |
+|---|---|---|---|
+| `rendio.requests.total` | Counter | — | `mode` (`html`, `url`, `template`) |
+| `rendio.request.duration` | Histogram | ms | `mode`, `status` (`ok`, `error`) |
+| `rendio.errors.total` | Counter | — | `error.type` |
+
+In Go, inject a `Meter` via `rendio.WithMeter(myMeter)`. The `Meter`
+interface defines `Counter(name, desc)` and `Histogram(name, desc, unit)`.
+When no meter is provided, metrics are a zero-allocation no-op.
 
 ### Gateway spans (server-side, visible when `traceparent` is injected)
 
@@ -150,6 +301,8 @@ the server-side spans linked via the injected `traceparent` header
 | `rendio.size_bytes` | int | On successful render |
 | `rendio.pool_hit` | string (`"true"` / `"false"`) | On successful render |
 | `rendio.chromium_version` | string | On successful render |
+| `rendio.api_key_name` | string | Auth middleware |
+| `rendio.filename` | string | When `filename` param is set |
 
 ## Opt-out
 
@@ -200,7 +353,7 @@ import { UndiciInstrumentation } from "@opentelemetry/instrumentation-undici";
 
 new UndiciInstrumentation({
   ignoreOutgoingRequestHook(req) {
-    return req.origin?.includes("api.rendio.dev") ?? false;
+    return req.origin?.includes("rendio.dev/api") ?? false;
   },
 });
 ```

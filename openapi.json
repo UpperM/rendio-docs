@@ -7,7 +7,7 @@
   },
   "servers": [
     {
-      "url": "https://api.rendio.dev",
+      "url": "https://rendio.dev/api",
       "description": "Production"
     }
   ],
@@ -16,7 +16,7 @@
       "bearerAuth": {
         "type": "http",
         "scheme": "bearer",
-        "bearerFormat": "API key (rk_live_* or rk_test_*)"
+        "bearerFormat": "API key (rk_live_*)"
       }
     },
     "schemas": {
@@ -47,7 +47,7 @@
                   "idempotency_conflict",
                   "internal_error"
                 ],
-                "description": "Machine-readable error code."
+                "description": "Machine-readable error code.\n- `validation_error` — Invalid request parameters or missing required fields.\n- `html_too_large` — HTML or CSS body exceeds the 1 MB limit.\n- `invalid_api_key` — API key is missing, malformed, or revoked.\n- `rate_limit_exceeded` — Too many requests; retry after the delay in the `Retry-After` header.\n- `quota_exceeded` — Monthly render quota exhausted; upgrade or wait for the next billing period.\n- `render_timeout` — Chromium did not finish rendering within 30 seconds.\n- `not_found` — The requested resource does not exist or is not owned by this API key.\n- `render_failed` — Chromium crashed or returned an unrecoverable error.\n- `server_busy` — All rendering workers are occupied; retry shortly.\n- `plan_limit` — The requested feature requires a higher plan.\n- `concurrent_limit_exceeded` — Too many renders running simultaneously for this plan.\n- `url_blocked` — The provided URL is on the blocklist (localhost, private IPs, etc.).\n- `url_unreachable` — Could not establish a connection to the provided URL.\n- `url_http_error` — The provided URL returned a non-2xx HTTP status.\n- `url_timeout` — The provided URL did not respond within the navigation timeout.\n- `idempotency_conflict` — Idempotency key was already used with a different request body.\n- `internal_error` — Unexpected server error; contact support if it persists."
               },
               "message": {
                 "type": "string",
@@ -66,21 +66,20 @@
         },
         "required": [
           "error"
-        ]
+        ],
+        "description": "Standard API error envelope."
       },
       "RenderResponse": {
         "type": "object",
         "properties": {
           "id": {
             "type": "string",
-            "example": "rd_abc123def456",
-            "description": "Unique render identifier (trace ID)."
+            "description": "Unique render identifier."
           },
           "url": {
             "type": "string",
             "format": "uri",
-            "example": "https://cdn.rendio.dev/f/abc123.pdf",
-            "description": "CDN download URL (valid for the duration of `expiresAt`)."
+            "description": "Download URL for the rendered file (valid until `expiresAt`)."
           },
           "pages": {
             "type": "integer",
@@ -95,8 +94,7 @@
               "string",
               "null"
             ],
-            "example": "2026-04-26T12:00:00.000Z",
-            "description": "ISO 8601 UTC timestamp when the CDN link expires. Null for preview renders."
+            "description": "ISO 8601 UTC timestamp when the download URL expires. Null for preview renders."
           },
           "meta": {
             "type": "object",
@@ -113,7 +111,7 @@
                   "number",
                   "null"
                 ],
-                "description": "Chromium rendering time in milliseconds."
+                "description": "Rendering time in milliseconds."
               }
             },
             "required": [
@@ -129,7 +127,8 @@
           "size",
           "expiresAt",
           "meta"
-        ]
+        ],
+        "description": "Successful render result with file metadata and download URL."
       },
       "FileResponse": {
         "type": "object",
@@ -141,7 +140,7 @@
           "url": {
             "type": "string",
             "format": "uri",
-            "description": "CDN download URL."
+            "description": "Download URL for the rendered file."
           },
           "pages": {
             "type": "integer",
@@ -165,7 +164,8 @@
           "pages",
           "size",
           "expiresAt"
-        ]
+        ],
+        "description": "File metadata for a previously rendered file."
       },
       "HealthResponse": {
         "type": "object",
@@ -215,7 +215,8 @@
           "version",
           "uptime",
           "services"
-        ]
+        ],
+        "description": "Service health status."
       },
       "HealthDegradedResponse": {
         "type": "object",
@@ -260,7 +261,8 @@
           "version",
           "uptime",
           "services"
-        ]
+        ],
+        "description": "Degraded service health when the database is unreachable."
       }
     },
     "parameters": {}
@@ -269,7 +271,7 @@
     "/v1/render": {
       "post": {
         "summary": "Render HTML or URL to PDF / PNG / JPEG",
-        "description": "Converts HTML markup or a remote URL into a PDF (default), PNG, or JPEG. Set `response=url` (default) to receive a CDN link; set `response=buffer` to stream bytes directly. Exactly one of `html` or `source` must be supplied.",
+        "description": "Converts HTML markup or a remote URL into a PDF (default), PNG, or JPEG. Set `response=url` (default) to receive a download link; set `response=buffer` to stream bytes directly. Exactly one of `html` or `source` must be supplied.",
         "security": [
           {
             "bearerAuth": []
@@ -345,7 +347,7 @@
                       "Tabloid"
                     ],
                     "default": "A4",
-                    "description": "Paper size preset."
+                    "description": "Page size preset. Ignored when `width` and `height` are set."
                   },
                   "response": {
                     "type": "string",
@@ -354,12 +356,12 @@
                       "buffer"
                     ],
                     "default": "url",
-                    "description": "`url` returns a JSON envelope with a CDN link; `buffer` streams the binary file directly."
+                    "description": "`url` returns a JSON envelope with a download link; `buffer` streams the binary file directly."
                   },
                   "preview": {
                     "type": "boolean",
                     "default": false,
-                    "description": "Preview mode: renders without auth requirement or quota, returns `buffer` only."
+                    "description": "Preview mode: renders without consuming quota. Always returns `buffer` response."
                   },
                   "waitUntil": {
                     "type": "string",
@@ -418,7 +420,7 @@
                   },
                   "displayHeaderFooter": {
                     "type": "boolean",
-                    "description": "Render `headerTemplate` and `footerTemplate`."
+                    "description": "Show page headers and footers defined by `headerTemplate` and `footerTemplate`."
                   },
                   "headerTemplate": {
                     "type": "string",
@@ -472,7 +474,7 @@
                       "raw",
                       "base64"
                     ],
-                    "description": "Response encoding for buffer mode. `base64` returns a base64-encoded string."
+                    "description": "Encoding when `response=buffer`. `base64` returns a base64-encoded string instead of raw bytes."
                   },
                   "javascript": {
                     "type": "string",
@@ -492,7 +494,7 @@
         },
         "responses": {
           "200": {
-            "description": "**URL mode** (`response=url`): JSON envelope with a CDN link. **Buffer mode** (`response=buffer`): binary file bytes with Content-Type matching `output` (default `application/pdf`).",
+            "description": "**URL mode** (`response=url`): JSON envelope with a download link. **Buffer mode** (`response=buffer`): binary file bytes with Content-Type matching `output` (default `application/pdf`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -635,7 +637,7 @@
     "/v1/files/{id}": {
       "get": {
         "summary": "Get file metadata by ID",
-        "description": "Returns metadata and the CDN download URL for a previously rendered file owned by the authenticated user.",
+        "description": "Returns metadata and the download URL for a previously rendered file owned by the authenticated user.",
         "security": [
           {
             "bearerAuth": []

@@ -1,7 +1,7 @@
 ---
 title: "GET /v1/files/{id}"
 description: "Retrieve metadata for a previously rendered file by its ID."
-api: "GET https://api.rendio.dev/v1/files/{id}"
+api: "GET https://rendio.dev/api/v1/files/{id}"
 ---
 
 Returns the CDN URL and metadata for a previously rendered file. The file
@@ -53,7 +53,7 @@ Bearer token. See [Authentication](/authentication).
 <RequestExample>
 
 ```bash cURL
-curl https://api.rendio.dev/v1/files/rd_abc1234567890def \
+curl https://rendio.dev/api/v1/files/rd_abc1234567890def \
   -H "Authorization: Bearer $RENDIO_API_KEY"
 ```
 

@@ -14,18 +14,18 @@ in browser-based or CLI tools:
     approximation — the actual bytes Chromium produces, via the Rendio
     API. Multi-page output with proper page breaks and shadows.
   </Card>
-  <Card title="Highlight Changes" icon="arrow-right-arrow-left" href="/vscode/highlight-changes">
+  <Card title="Highlight Changes" icon="arrow-right-arrow-left" href="/dev-prod-parity/highlight-changes">
     Word-level semantic diff between consecutive renders. Three display
     modes (text / overlay / side-by-side), lockable baseline, jump-to-next
     navigation. The only way to know what a template tweak *actually*
     changed in the PDF.
   </Card>
-  <Card title="Render Config — no drift" icon="code-compare" href="/vscode/render-config">
+  <Card title="Render Config — no drift" icon="code-compare" href="/dev-prod-parity/render-config">
     Put margins, page size, headers, and footers in `rendio.json`. The
     extension uses it for previews. Your production code loads the same
     file via `@rendio/config`. Preview = production, byte-for-byte.
   </Card>
-  <Card title="TSX templates" icon="react" href="/vscode/tsx-templates">
+  <Card title="TSX templates" icon="react" href="/dev-prod-parity/mock-data-tsx">
     Write templates as React components. `esbuild` bundles them, a
     companion `.data.json` supplies props, the output renders like any
     other HTML.
@@ -105,7 +105,7 @@ doesn't exist, and re-renders the preview whenever you save it.
 templates/
 ├── invoice.hbs
 ├── invoice.data.json       ← mock data for Handlebars
-└── invoice.rendio.json     ← render options (see /vscode/render-config)
+└── invoice.rendio.json     ← render options (see /dev-prod-parity/render-config)
 ```
 
 ## Commands
@@ -126,7 +126,7 @@ templates/
 | Setting | Default | Purpose |
 |---|---|---|
 | `rendio.apiKey` | *(empty)* | API key for PDF preview and export |
-| `rendio.apiUrl` | `https://api.rendio.dev` | Override API base URL (self-hosted / dev) |
+| `rendio.apiUrl` | `https://rendio.dev/api` | Override API base URL (self-hosted / dev) |
 | `rendio.diff.enabled` | `false` | Enable Highlight Changes by default |
 | `rendio.diff.mode` | `text` | Default diff mode — `text`, `overlay`, or `sideBySide` |
 | `rendio.diff.colorAdded` | `#22c55e` | Highlight color for added words |
@@ -161,13 +161,13 @@ opens a save dialog. This command **does** consume your monthly quota.
 ## Where to next
 
 <CardGroup cols={3}>
-  <Card title="Highlight Changes" icon="arrow-right-arrow-left" href="/vscode/highlight-changes">
+  <Card title="Highlight Changes" icon="arrow-right-arrow-left" href="/dev-prod-parity/highlight-changes">
     Word-level diff, three display modes, locked baselines.
   </Card>
-  <Card title="Render Config" icon="code-compare" href="/vscode/render-config">
+  <Card title="Render Config" icon="code-compare" href="/dev-prod-parity/render-config">
     Same config file in preview and production — no drift.
   </Card>
-  <Card title="TSX templates" icon="react" href="/vscode/tsx-templates">
+  <Card title="TSX templates" icon="react" href="/dev-prod-parity/mock-data-tsx">
     React components as PDF templates with esbuild + props.
   </Card>
 </CardGroup>

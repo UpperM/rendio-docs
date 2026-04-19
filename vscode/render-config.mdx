@@ -16,28 +16,27 @@ share it byte-for-byte.
 
 ## The problem it fixes
 
-```
-WITHOUT render config:
-
-  preview (VSCode)                 production (your app)
-  ────────────────                 ─────────────────────
-  extension defaults               hand-written params
-   └─ pageSize: A4                  └─ pageSize: "A4"
-   └─ margin: (none)                └─ margin: {top:"20mm"}
-   └─ printBackground: false        └─ printBackground: true
-
-  Result: preview looks fine, production diverges.
+```mermaid
+flowchart TB
+  subgraph without["WITHOUT render config"]
+    direction LR
+    P1["Preview (VSCode)\npageSize: A4\nmargin: none\nprintBackground: false"] -.->|"different params"| PR1["Production (your app)\npageSize: A4\nmargin: top 20mm\nprintBackground: true"]
+  end
 ```
 
-```
-WITH render config:
+**Result:** preview looks fine, production diverges.
 
-  preview (VSCode) ─────────┐
-                            ├── rendio.json + *.rendio.json
-  production (your app) ────┘   (single source of truth)
-
-  Result: identical output, no drift.
+```mermaid
+flowchart TB
+  subgraph with["WITH render config"]
+    direction TB
+    CFG["rendio.json\n+ *.rendio.json\nsingle source of truth"]
+    P2["Preview (VSCode)"] --> CFG
+    PR2["Production (your app)"] --> CFG
+  end
 ```
+
+**Result:** identical output, no drift.
 
 ## File layout
 
@@ -84,7 +83,7 @@ Sits next to a template file. Overrides everything else.
   "margin": { "top": "10mm", "bottom": "10mm" },
   "printBackground": true,
   "displayHeaderFooter": true,
-  "footerTemplate": "<div style=\"font-size:9px;width:100%;text-align:center;\">Page <span class=\"pageNumber\"></span></div>"
+  "footerTemplate": "<div style=\"font-size:9px;text-align:center;\">Page <span class=\"pageNumber\"></span></div>"
 }
 ```
 
@@ -227,7 +226,13 @@ the pattern.
 `invoices/*.hbs` applies to `<root>/invoices/*.hbs`, not arbitrary
 subfolders. Use `**/*.hbs` for recursive match.
 
+**`@rendio/config` is Node-only.** Go and Python services can read
+`rendio.json` files directly as JSON and merge the options into their
+render calls — the config format is plain JSON with no Node-specific
+logic. The resolution order (project defaults → glob match → sidecar)
+is simple enough to replicate in ~20 lines.
+
 ## See also
 
-- [VSCode overview](/vscode/overview) — extension install and features.
+- [VSCode overview](/dev-prod-parity/live-preview) — extension install and features.
 - [POST /v1/render](/api-reference/render) — the full parameter list you can put in config files.

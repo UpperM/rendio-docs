@@ -109,6 +109,13 @@ RendioError (base)
     ```
   </Tab>
   <Tab title="Python">
+    <Warning>
+    `rendio.TimeoutError` shadows Python's builtin `TimeoutError`. Use
+    `rendio.TimeoutError` (qualified) or alias it
+    (`from rendio import TimeoutError as RendioTimeoutError`) to avoid
+    accidentally catching `asyncio.TimeoutError` in broader handlers.
+    </Warning>
+
     ```python
     import rendio
     from rendio import (
@@ -176,8 +183,8 @@ RendioError (base)
             return "", fmt.Errorf("rendio quota exhausted")
         }
         var rl *rendio.RateLimitError
-        if errors.As(err, &rl) && rl.RetryAfter > 0 {
-            time.Sleep(time.Duration(rl.RetryAfter) * time.Second)
+        if errors.As(err, &rl) && rl.RetryAfter != nil && *rl.RetryAfter > 0 {
+            time.Sleep(time.Duration(*rl.RetryAfter) * time.Second)
             return render(ctx, html)
         }
         return "", err

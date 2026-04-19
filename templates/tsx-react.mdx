@@ -121,6 +121,46 @@ const html = renderToStaticMarkup(<Invoice {...invoiceData} />);
 const pdf = await rendio.pdfs.create({ html, css: tailwindCss, pageSize: "A4" });
 ```
 
+### Tailwind config for PDF output
+
+PDFs use print media. Add a `print:` variant and disable the default
+`@media print` reset so your styles apply:
+
+```js
+// tailwind.config.js
+export default {
+  content: ["./templates/**/*.tsx"],
+  theme: {
+    extend: {
+      screens: {
+        print: { raw: "print" },
+      },
+    },
+  },
+  corePlugins: {
+    preflight: true,
+  },
+};
+```
+
+Use `print:` variants for PDF-specific styles (e.g. `print:break-before-page`,
+`print:hidden`). Since Rendio renders with `@media screen` by default, pass
+`printBackground: true` to include background colors and images:
+
+```ts
+const pdf = await rendio.pdfs.create({
+  html,
+  css: tailwindCss,
+  pageSize: "A4",
+  printBackground: true,
+});
+```
+
+<Tip>
+  If your styles look different in the PDF, check that `printBackground`
+  is enabled — without it, Chromium strips background colors and images.
+</Tip>
+
 ## Limitations
 
 | Not supported | Workaround |

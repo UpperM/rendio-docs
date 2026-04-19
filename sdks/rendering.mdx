@@ -74,25 +74,53 @@ pdf.meta.renderTimeMs;
 `response: "buffer"` streams raw bytes back — no CDN storage, no storage
 quota consumed.
 
-```ts
-import { writeFileSync } from "node:fs";
+<Tabs>
+  <Tab title="Node">
+    ```ts
+    import { writeFileSync } from "node:fs";
 
-const result = await rendio.pdfs.create({
-  html: "<h1>Invoice</h1>",
-  response: "buffer",
-});
+    const result = await rendio.pdfs.create({
+      html: "<h1>Invoice</h1>",
+      response: "buffer",
+    });
 
-writeFileSync("invoice.pdf", Buffer.from(result.buffer));
-```
+    writeFileSync("invoice.pdf", Buffer.from(result.buffer));
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    result = client.pdfs.create(html="<h1>Invoice</h1>", response="buffer")
+
+    with open("invoice.pdf", "wb") as f:
+        f.write(result.buffer)
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    result, err := client.Pdfs.CreateBuffer(ctx, rendio.PdfCreateParams{
+        HTML: "<h1>Invoice</h1>",
+    })
+    if err != nil { log.Fatal(err) }
+
+    os.WriteFile("invoice.pdf", result.Buffer, 0644)
+    ```
+
+    Go uses a separate `CreateBuffer` method (not a parameter on `Create`).
+    `CreateBufferWithResponse` returns both the result and the raw `*http.Response`.
+  </Tab>
+</Tabs>
 
 ### Per-request options
 
-| Option | Type | Purpose |
-|---|---|---|
-| `timeout` | number (ms) | Override the client-level timeout |
-| `maxRetries` | number | Override the client-level retry count |
-| `signal` | `AbortSignal` | Cancel the request from the caller |
-| `idempotencyKey` | string | Deduplicate retries (URL mode only) |
+| Option | Type | Purpose | SDKs |
+|---|---|---|---|
+| `timeout` | number (ms) | Override the client-level timeout | All |
+| `maxRetries` | number | Override the client-level retry count | All |
+| `signal` | `AbortSignal` | Cancel the request from the caller | Node only |
+| `idempotencyKey` | string | Deduplicate retries (URL mode only) | All |
+
+Go uses `context.Context` (first param) for cancellation instead of `signal`.
+The Python SDK does not currently support request cancellation.
 
 ## `pdfs.get(id)`
 
@@ -123,7 +151,9 @@ Fetch metadata for a previously rendered file.
 Throws `NotFoundError` when the ID doesn't exist, has expired, or was
 rendered in preview mode (preview files are not indexed).
 
-## Return types (Node / TypeScript)
+## Return types
+
+### Node / TypeScript
 
 ```ts
 import type {
@@ -143,9 +173,268 @@ import type {
 | `PdfBufferResult` | `{ buffer: ArrayBuffer, meta }` |
 | `RenderMeta` | `{ chromiumVersion?, renderTimeMs?, phases?, rateLimit? }` |
 
+#### `meta.rateLimit`
+
+When rate limit headers are present in the response, `meta.rateLimit` is
+populated:
+
+| Field | Type | Description |
+|---|---|---|
+| `limit` | `number` | Max requests per window |
+| `remaining` | `number` | Requests remaining |
+| `resetAt` | `number` | Unix timestamp when the window resets |
+
+### Python
+
+| Type | Fields |
+|---|---|
+| `PdfCreateUrlResult` | `id`, `url`, `pages`, `size`, `expires_at`, `meta` |
+| `PdfBufferResult` | `buffer` (bytes), `meta` |
+| `RenderMeta` | `chromium_version?`, `render_time_ms?`, `phases?`, `rate_limit?` |
+
+Access via `result.url`, `result.pages`, `result.meta.chromium_version`, etc.
+
+### Go
+
+| Type | Fields |
+|---|---|
+| `PdfCreateURLResult` | `ID`, `URL`, `Pages`, `Size`, `ExpiresAt`, `Meta` |
+| `PdfBufferResult` | `Buffer` ([]byte), `Meta` |
+| `RenderMeta` | `ChromiumVersion`, `RenderTimeMs`, `Phases`, `RateLimit` |
+| `RateLimitInfo` | `Limit`, `Remaining`, `ResetAt` |
+
+## Python async client
+
+The Python SDK ships both sync and async clients. Use `AsyncRendio` for
+FastAPI, async task queues, or any `asyncio`-based application.
+
+```python
+import rendio
+
+# Sync client (Django, Flask, scripts)
+client = rendio.Rendio()
+pdf = client.pdfs.create(html="<h1>Invoice</h1>")
+
+# Async client (FastAPI, Celery async tasks)
+async_client = rendio.AsyncRendio()
+pdf = await async_client.pdfs.create(html="<h1>Invoice</h1>")
+```
+
+The async client uses `httpx.AsyncClient` under the hood. Use it as a
+context manager for proper connection cleanup:
+
+```python
+async with rendio.AsyncRendio() as client:
+    pdf = await client.pdfs.create(html="<h1>Invoice</h1>")
+    print(pdf.url)
+```
+
+### FastAPI example
+
+Use FastAPI's `lifespan` protocol to properly manage the client connection
+pool. Creating `AsyncRendio()` at module scope without cleanup leaks the
+underlying `httpx.AsyncClient`.
+
+```python
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from fastapi.responses import Response
+from pydantic import BaseModel
+import rendio
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    app.state.rendio = rendio.AsyncRendio()
+    yield
+    await app.state.rendio.aclose()
+
+app = FastAPI(lifespan=lifespan)
+
+class PdfRequest(BaseModel):
+    html: str
+    page_size: str = "A4"
+
+@app.post("/api/pdf")
+async def generate_pdf(req: PdfRequest):
+    client: rendio.AsyncRendio = req.app.state.rendio
+    try:
+        result = await client.pdfs.create(
+            html=req.html, page_size=req.page_size, response="buffer",
+        )
+        return Response(
+            content=result.buffer,
+            media_type="application/pdf",
+            headers={"Content-Disposition": 'attachment; filename="document.pdf"'},
+        )
+    except rendio.AuthenticationError:
+        return Response(status_code=500, content="PDF service unavailable")
+    except rendio.QuotaExceededError:
+        return Response(status_code=503, content="Quota exhausted")
+    except rendio.RendioError as e:
+        return Response(status_code=e.status_code or 500, content=e.message)
+```
+
+## Go additional methods
+
+The Go SDK exposes additional variants for advanced use cases:
+
+| Method | Returns | Use case |
+|---|---|---|
+| `Pdfs.Create(ctx, params, opts...)` | `*PdfCreateURLResult, error` | URL mode (default) |
+| `Pdfs.CreateBuffer(ctx, params, opts...)` | `*PdfBufferResult, error` | Buffer mode |
+| `Pdfs.CreateWithResponse(ctx, params, opts...)` | `*PdfCreateURLResult, *http.Response, error` | URL mode + raw HTTP response |
+| `Pdfs.CreateBufferWithResponse(ctx, params, opts...)` | `*PdfBufferResult, *http.Response, error` | Buffer mode + raw HTTP response |
+| `Pdfs.Get(ctx, id, opts...)` | `*PdfURLResult, error` | Fetch file metadata |
+| `Pdfs.GetWithResponse(ctx, id, opts...)` | `*PdfURLResult, *http.Response, error` | Metadata + raw HTTP response |
+
 ## Full parameter reference
 
 Every field on `POST /v1/render` is available here under its camelCase
 name (Node / Go) or snake_case equivalent (Python). See
 [POST /v1/render](/api-reference/render) for the complete parameter table,
 plan gates, and validation rules.
+
+## Testing
+
+Point the SDK at a local mock server using `WithBaseURL` (or its equivalent)
+so tests never hit the real API.
+
+<Tabs>
+  <Tab title="Node">
+    Use [msw](https://mswjs.io/) or a lightweight HTTP server. Pass the
+    server's URL via the `baseUrl` constructor option.
+
+    ```ts
+    import { http, HttpResponse } from "msw";
+    import { setupServer } from "msw/node";
+    import Rendio from "rendio";
+    import { afterAll, beforeAll, expect, test } from "vitest";
+
+    const mockPdf = {
+      id: "rd_test123",
+      url: "https://cdn.rendio.dev/f/rd_test123.pdf",
+      pages: 1,
+      size: 1024,
+      expiresAt: null,
+      meta: {},
+    };
+
+    const server = setupServer(
+      http.post("http://localhost:9876/v1/render", () =>
+        HttpResponse.json(mockPdf),
+      ),
+    );
+
+    beforeAll(() => server.listen());
+    afterAll(() => server.close());
+
+    test("creates a PDF", async () => {
+      const rendio = new Rendio("rk_test_xxx", {
+        baseUrl: "http://localhost:9876",
+        maxRetries: 0,
+      });
+
+      const pdf = await rendio.pdfs.create({ html: "<h1>Test</h1>" });
+      expect(pdf.id).toBe("rd_test123");
+      expect(pdf.url).toContain("rd_test123");
+    });
+    ```
+  </Tab>
+  <Tab title="Python">
+    Use [respx](https://lundberg.github.io/respx/) to intercept `httpx`
+    requests. Point the client at a test base URL so the mock matcher is
+    stable.
+
+    ```python
+    import respx
+    from httpx import Response
+    import rendio
+
+    MOCK_PDF = {
+        "id": "rd_test123",
+        "url": "https://cdn.rendio.dev/f/rd_test123.pdf",
+        "pages": 1,
+        "size": 1024,
+        "expiresAt": None,
+        "meta": {},
+    }
+
+    @respx.mock
+    def test_create_pdf():
+        respx.post("http://test/v1/render").mock(
+            return_value=Response(200, json=MOCK_PDF)
+        )
+
+        client = rendio.Rendio(
+            api_key="rk_test_xxx",
+            base_url="http://test",
+            max_retries=0,
+        )
+
+        pdf = client.pdfs.create(html="<h1>Test</h1>")
+        assert pdf.id == "rd_test123"
+        assert "rd_test123" in pdf.url
+    ```
+  </Tab>
+  <Tab title="Go">
+    Use `net/http/httptest` to spin up a local server, then pass its URL
+    via `rendio.WithBaseURL`.
+
+    ```go
+    package pdf_test
+
+    import (
+        "context"
+        "encoding/json"
+        "net/http"
+        "net/http/httptest"
+        "testing"
+
+        "github.com/rendio/rendio-go"
+    )
+
+    func TestCreatePdf(t *testing.T) {
+        mockPdf := map[string]any{
+            "id":    "rd_test123",
+            "url":   "https://cdn.rendio.dev/f/rd_test123.pdf",
+            "pages": 1,
+            "size":  1024,
+        }
+
+        server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+            if r.URL.Path != "/v1/render" {
+                t.Errorf("unexpected path: %s", r.URL.Path)
+            }
+            w.Header().Set("Content-Type", "application/json")
+            json.NewEncoder(w).Encode(mockPdf)
+        }))
+        defer server.Close()
+
+        client, err := rendio.NewClient(
+            rendio.WithAPIKey("rk_test_xxx"),
+            rendio.WithBaseURL(server.URL),
+            rendio.WithMaxRetries(0),
+        )
+        if err != nil {
+            t.Fatal(err)
+        }
+
+        pdf, err := client.Pdfs.Create(context.Background(), rendio.PdfCreateParams{
+            HTML: "<h1>Test</h1>",
+        })
+        if err != nil {
+            t.Fatal(err)
+        }
+
+        if pdf.ID != "rd_test123" {
+            t.Errorf("got id %q, want rd_test123", pdf.ID)
+        }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+<Tip>
+  Set `maxRetries: 0` in tests to avoid backoff delays and make failures
+  immediate. See [Retries & timeouts](/sdks/retries-and-timeouts) for more.
+</Tip>

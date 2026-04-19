@@ -1,0 +1,150 @@
+---
+title: "Highlight Changes"
+description: "Word-level semantic diff between renders — see exactly what a template edit changed in the PDF."
+---
+
+Templates are deceptive. A one-line CSS tweak can shift an invoice's
+totals column by three pixels and push a row to page 2. A Handlebars
+conditional re-ordering can move a paragraph you weren't expecting.
+**Highlight Changes** compares every render to the previous one, extracts
+the PDF's text with `pdfjs-dist`, and shows you exactly what moved.
+
+<Tip>
+  Toggle with `Ctrl+Alt+D` / `Cmd+Alt+D` or the **Rendio: Toggle
+  Highlight Changes** command. Or turn it on permanently via the
+  `rendio.diff.enabled` setting.
+</Tip>
+
+## How it works
+
+After each render, the extension:
+
+1. Extracts tokenized text and positions from the PDF (`pdfjs-dist`).
+2. Runs a Longest-Common-Subsequence diff against the previous render.
+3. Paints additions and removals on top of the PDF in the preview pane.
+4. Updates the status bar with a summary — `Changes: +12 −4`.
+
+No server round-trip — the diff runs entirely inside the extension,
+so it doesn't cost quota and it's responsive.
+
+{/* TODO: Add screenshot/GIF — highlight changes in action.
+   Template with CSS change, PDF preview with green added words
+   and red removed markers. GIF ideal to show live updating.
+   Save as /images/vscode-highlight-changes.gif (1200×800). */}
+
+## Display modes
+
+Switch via the toolbar above the PDF, or set a default via
+`rendio.diff.mode`.
+
+<Tabs>
+  <Tab title="Text">
+    **Default.** Added words are highlighted in green on the current
+    render. Removed words are marked in the right margin at their former
+    position. Best for copy edits and content changes — you can read the
+    PDF with diff markers overlaid.
+  </Tab>
+  <Tab title="Overlay">
+    Crossfade between the previous and current render with an opacity
+    slider. Best for layout changes — move the slider back and forth to
+    visually scrub the difference. Elements that shifted a few pixels
+    become obvious immediately.
+  </Tab>
+  <Tab title="Side-by-side">
+    Previous render on the left, current on the right, with text diff
+    overlaid on both. Best for larger reviews where you want to see both
+    states at once without toggling.
+  </Tab>
+</Tabs>
+
+## Baseline management
+
+By default each new render becomes the baseline for the next comparison.
+That's perfect for iterative polish. When you want to pin a "known good"
+state and compare every subsequent edit against it, use **Lock**.
+
+### Session baselines
+
+The auto-advancing baseline is held in memory. It resets when you close
+the preview panel or restart VS Code. No configuration needed.
+
+### Pinned baselines
+
+Run **`Rendio: Lock Reference Snapshot`** (or click the lock button in
+the diff toolbar) to pin the current render. All future renders compare
+against the locked snapshot until you unlock.
+
+Pinned baselines **persist across VS Code restarts** — close the editor,
+re-open, and your reference is still the one you locked.
+
+Run **`Rendio: Unlock Reference Snapshot`** to release the pin and
+resume auto-advancing.
+
+Baselines are invalidated automatically when the page size changes. A
+diff between an A4 baseline and a Letter render would be meaningless, so
+the extension clears the baseline and starts fresh.
+
+## Changes panel
+
+A collapsible panel at the bottom of the preview lists every added and
+removed word group, with `+` and `−` indicators and the page number
+where each change appears. The panel shows up to 50 changed word groups.
+
+Click any item to scroll the PDF to where the change occurred. Useful
+when the status bar reads `+47 −3` and you need to locate the additions
+quickly.
+
+## Commands
+
+| Command | Shortcut | What it does |
+|---|---|---|
+| `Rendio: Toggle Highlight Changes` | `Ctrl+Alt+D` | Enable / disable the diff overlay |
+| `Rendio: Lock Reference Snapshot` | — | Pin the current render as the diff baseline |
+| `Rendio: Unlock Reference Snapshot` | — | Resume auto-advancing the baseline |
+| `Rendio: Jump to Next Change` | — | Scroll to the next diff region, cycling through all |
+
+## Status bar summary
+
+While Highlight Changes is on, the status bar shows:
+
+| Display | Meaning |
+|---|---|
+| `Changes: +12 −4` | 12 words added, 4 removed. Same page count. |
+| `Changes: +1 page, +47 −3` | A new page appeared. 47 additions, 3 removals. |
+| `Changes: −1 page, +2 −18` | A page disappeared. Net 16 removals. |
+
+## Customization
+
+| Setting | Type | Default | Purpose |
+|---|---|---|---|
+| `rendio.diff.enabled` | boolean | `false` | Turn Highlight Changes on by default |
+| `rendio.diff.mode` | enum | `text` | Default display mode — `text`, `overlay`, `sideBySide` |
+| `rendio.diff.colorAdded` | color | `#22c55e` | Highlight color for added words |
+| `rendio.diff.colorRemoved` | color | `#ef4444` | Marker color for removed words |
+
+Colors use VS Code's native color picker in the Settings UI — click the
+swatch and pick any color.
+
+## Use cases
+
+| Task | Recommended mode |
+|---|---|
+| Copy edits, typo fixes | **Text** — words highlighted inline |
+| CSS or layout changes | **Overlay** — scrub the crossfade slider to see pixel shifts |
+| Large content restructures | **Side-by-side** — full before/after visible at once |
+| Design review sign-off | Lock a baseline, make edits, review the full diff before merging |
+| Catching CSS regressions | Any mode — the `+N page` prefix in the status bar flags page-count changes instantly |
+
+## Limitations
+
+- The diff is text-based. Pure graphical changes (a background color
+  swap with no text movement, an SVG path adjustment) won't show up in
+  the overlay. Use Overlay mode to scrub visually for those.
+- Very large PDFs (hundreds of pages) may hit the diff algorithm's cell
+  cap and fall back to a whole-page flag. Typical invoices, reports, and
+  contracts are well within the limit.
+
+## See also
+
+- [Render Config](/dev-prod-parity/render-config) — write config once, render consistently in preview and production.
+- [Mock Data & TSX](/dev-prod-parity/mock-data-tsx) — test conditional rendering branches with different `.data.json` values.

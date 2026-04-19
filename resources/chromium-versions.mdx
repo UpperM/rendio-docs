@@ -26,7 +26,7 @@ console.log(pdf.meta.renderTimeMs);
 ```
 
 ```bash
-curl -X POST https://api.rendio.dev/v1/render \
+curl -X POST https://rendio.dev/api/v1/render \
   -H "Authorization: Bearer $RENDIO_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"html":"<h1>Hi</h1>","response":"buffer"}' \

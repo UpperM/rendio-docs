@@ -1,0 +1,341 @@
+---
+title: "Go net/http"
+description: "PDF generation handlers in a Go web service using the standard library."
+---
+
+Add PDF endpoints to a Go service using `net/http` — no framework required.
+
+## Setup
+
+```bash
+go get github.com/rendio/rendio-go
+```
+
+```bash
+export RENDIO_API_KEY=rk_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+## URL mode handler
+
+Return JSON with a CDN URL to the rendered PDF.
+
+```go
+// handlers/pdf.go
+package handlers
+
+import (
+	"encoding/json"
+	"net/http"
+
+	"github.com/rendio/rendio-go"
+)
+
+type PdfRequest struct {
+	HTML     string         `json:"html"`
+	Data     map[string]any `json:"data,omitempty"`
+	PageSize string         `json:"pageSize,omitempty"`
+}
+
+func HandleCreatePdf(client *rendio.Client) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var body PdfRequest
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "invalid JSON body", http.StatusBadRequest)
+			return
+		}
+
+		pdf, err := client.Pdfs.Create(r.Context(), rendio.PdfCreateParams{
+			HTML:     body.HTML,
+			Data:     body.Data,
+			PageSize: rendio.PageSize(body.PageSize),
+		})
+		if err != nil {
+			writeRendioError(w, err)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(pdf)
+	}
+}
+```
+
+## Buffer mode handler
+
+Stream raw PDF bytes as a file download — no CDN storage consumed.
+
+```go
+// handlers/pdf_buffer.go
+package handlers
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+
+	"github.com/rendio/rendio-go"
+)
+
+func HandleCreatePdfBuffer(client *rendio.Client) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var body PdfRequest
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "invalid JSON body", http.StatusBadRequest)
+			return
+		}
+
+		result, err := client.Pdfs.CreateBuffer(r.Context(), rendio.PdfCreateParams{
+			HTML:     body.HTML,
+			Data:     body.Data,
+			PageSize: rendio.PageSize(body.PageSize),
+		})
+		if err != nil {
+			writeRendioError(w, err)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/pdf")
+		w.Header().Set("Content-Disposition", `attachment; filename="document.pdf"`)
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(result.Buffer)))
+		w.Write(result.Buffer)
+	}
+}
+```
+
+## Error handling
+
+Map Rendio errors to HTTP status codes using `errors.As`. Each typed error
+is a pointer, so declare a variable of the right type and branch on it.
+
+```go
+// handlers/errors.go
+package handlers
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+
+	"github.com/rendio/rendio-go"
+)
+
+type errorResponse struct {
+	Error string `json:"error"`
+	Code  string `json:"code,omitempty"`
+}
+
+func writeRendioError(w http.ResponseWriter, err error) {
+	var val *rendio.ValidationError
+	if errors.As(err, &val) {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: val.Message, Code: val.Code})
+		return
+	}
+	var auth *rendio.AuthenticationError
+	if errors.As(err, &auth) {
+		log.Printf("[rendio] API key invalid or revoked")
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "PDF service unavailable"})
+		return
+	}
+	var quota *rendio.QuotaExceededError
+	if errors.As(err, &quota) {
+		writeJSON(w, http.StatusServiceUnavailable, errorResponse{Error: "Rendio quota exhausted", Code: quota.Code})
+		return
+	}
+	var plan *rendio.PlanLimitError
+	if errors.As(err, &plan) {
+		writeJSON(w, http.StatusPaymentRequired, errorResponse{
+			Error: fmt.Sprintf("Feature %q requires a higher plan", plan.Feature),
+			Code:  plan.Code,
+		})
+		return
+	}
+	var timeout *rendio.TimeoutError
+	if errors.As(err, &timeout) {
+		writeJSON(w, http.StatusGatewayTimeout, errorResponse{Error: "Render timed out", Code: timeout.Code})
+		return
+	}
+	var re *rendio.RendioError
+	if errors.As(err, &re) {
+		log.Printf("[rendio] code=%s request_id=%s trace_id=%s", re.Code, re.RequestID, re.TraceID)
+		status := http.StatusInternalServerError
+		if re.StatusCode != nil {
+			status = *re.StatusCode
+		}
+		writeJSON(w, status, errorResponse{Error: re.Message, Code: re.Code})
+		return
+	}
+	writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "unexpected error"})
+}
+
+func writeJSON(w http.ResponseWriter, status int, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(v)
+}
+```
+
+## Wiring it up
+
+```go
+// main.go
+package main
+
+import (
+	"log"
+	"net/http"
+
+	"github.com/rendio/rendio-go"
+	"yourapp/handlers"
+)
+
+func main() {
+	client, err := rendio.NewClient() // reads RENDIO_API_KEY from env
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	mux := http.NewServeMux()
+	mux.Handle("/api/generate-pdf", handlers.HandleCreatePdf(client))
+	mux.Handle("/api/invoice.pdf", handlers.HandleCreatePdfBuffer(client))
+
+	log.Println("http://localhost:8080")
+	log.Fatal(http.ListenAndServe(":8080", mux))
+}
+```
+
+## Test
+
+```bash
+curl -X POST http://localhost:8080/api/generate-pdf \
+  -H "Content-Type: application/json" \
+  -d '{"html":"<h1>Invoice #2026-042</h1>","pageSize":"A4"}'
+```
+
+```json
+{
+  "id": "rd_abc1234567890def",
+  "url": "https://cdn.rendio.dev/f/rd_abc1234567890def.pdf",
+  "pages": 1,
+  "size": 38400,
+  "expiresAt": "2026-04-20T12:00:00.000Z"
+}
+```
+
+## Hard deadlines with context
+
+The SDK's timeout is **per attempt** (30 s by default). With 2 retries the
+worst-case wall time is ~105 s. To enforce a hard operation-level deadline,
+wrap the call in `context.WithTimeout`:
+
+```go
+func HandleCreatePdfWithDeadline(client *rendio.Client) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Hard 45-second cap on the entire operation (all attempts + backoff).
+		ctx, cancel := context.WithTimeout(r.Context(), 45*time.Second)
+		defer cancel()
+
+		var body PdfRequest
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "invalid JSON body", http.StatusBadRequest)
+			return
+		}
+
+		pdf, err := client.Pdfs.Create(ctx, rendio.PdfCreateParams{
+			HTML: body.HTML,
+		})
+		if err != nil {
+			// If the context deadline fires mid-backoff, the SDK surfaces
+			// a *rendio.TimeoutError — the same type as a per-attempt timeout.
+			writeRendioError(w, err)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(pdf)
+	}
+}
+```
+
+When the context expires — whether during an HTTP round-trip or between
+retries — the SDK stops immediately and returns `*rendio.TimeoutError`.
+Your error handler already covers it; no special case needed.
+
+## Middleware: inject client via context
+
+For larger applications, inject the Rendio client via middleware so handlers
+don't need a direct reference.
+
+```go
+// middleware/rendio.go
+package middleware
+
+import (
+	"context"
+	"net/http"
+
+	"github.com/rendio/rendio-go"
+)
+
+type ctxKey struct{}
+
+// WithRendio stores the client in the request context.
+func WithRendio(client *rendio.Client) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx := context.WithValue(r.Context(), ctxKey{}, client)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+// ClientFrom retrieves the Rendio client from the request context.
+func ClientFrom(ctx context.Context) *rendio.Client {
+	return ctx.Value(ctxKey{}).(*rendio.Client)
+}
+```
+
+Usage in a handler:
+
+```go
+func handlePdf(w http.ResponseWriter, r *http.Request) {
+	client := middleware.ClientFrom(r.Context())
+
+	pdf, err := client.Pdfs.Create(r.Context(), rendio.PdfCreateParams{
+		HTML: "<h1>Invoice</h1>",
+	})
+	if err != nil {
+		writeRendioError(w, err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(pdf)
+}
+```
+
+Wire it with the middleware:
+
+```go
+mux := http.NewServeMux()
+mux.HandleFunc("/api/pdf", handlePdf)
+
+wrapped := middleware.WithRendio(client)(mux)
+log.Fatal(http.ListenAndServe(":8080", wrapped))
+```
+
+<Tip>
+  Create the `rendio.Client` once in `main()`, not per request. The client
+  manages its own HTTP connection pool and is safe for concurrent use.
+</Tip>

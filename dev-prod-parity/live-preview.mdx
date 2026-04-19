@@ -1,0 +1,165 @@
+---
+title: "Live Preview"
+description: "Real PDF rendering in a VSCode side panel, updating on every save. No round-trips, no tab-switching."
+---
+
+The Rendio VSCode extension renders `.html`, `.hbs`, `.handlebars`, and
+`.tsx` templates as real PDFs in a side panel as you type. Every save
+triggers a fresh render (debounced 500&nbsp;ms). The result is the
+same Chromium output your production API call would produce — not an
+approximation.
+
+{/* TODO: Add screenshot — VSCode with a template open on the left and the
+   Rendio PDF preview panel on the right, showing a rendered invoice.
+   Status bar visible at bottom showing "312 ms · 84.1 KB".
+   Save as /images/vscode-live-preview.png (1600×900, dark theme). */}
+
+## Installation
+
+Open Extensions (`Ctrl+Shift+X` / `Cmd+Shift+X`), search **Rendio**,
+install the extension published by `rendio`. Or from the terminal:
+
+```bash
+code --install-extension rendio.rendio
+```
+
+Extension ID: `rendio.rendio`  
+Marketplace: [marketplace.visualstudio.com/items?itemName=rendio.rendio](https://marketplace.visualstudio.com/items?itemName=rendio.rendio)
+
+## API key setup
+
+The extension runs in two modes depending on whether an API key is configured.
+
+### PDF mode (with API key)
+
+With a key configured, the extension calls the Rendio API with
+`preview: true` on every save. It renders via `pdf.js` and displays
+the actual Chromium-generated PDF in the side panel. The status bar
+shows the last render's time and file size — `312 ms · 84.1 KB`.
+
+Preview renders use `preview: true`, which means:
+- They do not count against your monthly rendering quota.
+- Free plan: up to 50 preview renders per day. Paid plans: unlimited.
+- PDFs rendered in preview mode are not indexed — `pdfs.get()` returns 404 for them.
+
+### HTML mode (no API key)
+
+Without a key, the extension renders raw HTML directly in a VSCode
+webview sized to the selected page dimensions. Dashed lines mark
+implied page boundaries. The status bar shows `HTML preview`.
+
+This mode never calls the Rendio API. It's useful for building out
+layout before wiring up production — fonts, images, and JavaScript
+won't render exactly as Chromium would, but margins, columns, and
+general structure will.
+
+Once you add a key, the same template file switches to real PDF
+rendering without any other change.
+
+### Setting the key
+
+Two ways to configure your API key:
+
+**Workspace `.env`** (recommended for per-project keys):
+```bash
+# .env at the root of your workspace
+RENDIO_API_KEY=rk_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+**VSCode settings**: Press `Ctrl+,`, search `rendio.apiKey`, paste the key.
+
+<Tip>
+  Get your key at [rendio.dev/dashboard](https://rendio.dev/dashboard).
+  Keys start with `rk_live_` and are shown once at creation.
+</Tip>
+
+## Keyboard shortcuts
+
+| Action | Windows / Linux | macOS |
+|---|---|---|
+| Open preview panel | `Ctrl+Shift+R` | `Cmd+Shift+R` |
+| Toggle diff | `Ctrl+Alt+D` | `Cmd+Alt+D` |
+
+## Page size selector
+
+{/* TODO: Add screenshot — close-up of the VSCode status bar showing
+   page size indicator ("A4"), render time, and file size.
+   Save as /images/vscode-status-bar.png (800×100). */}
+
+A page size indicator appears in the status bar while the preview panel
+is open. Click it to cycle between **A4**, **A3**, **Letter**, **Legal**,
+and **Tabloid**. The selection persists per workspace.
+
+The status bar page size overrides `pageSize` in `rendio.json` for
+preview only — production renders always use the config file value.
+
+## Export PDF
+
+**`Rendio: Export PDF`** renders with `preview: false` — no watermark,
+full production quality. A save dialog opens so you can write the PDF to
+disk. This render **does** count against your monthly quota.
+
+Use this to produce a signed-off PDF you want to share before deploying,
+or to verify a complex template locally.
+
+## Auto-refresh triggers
+
+The preview re-renders automatically when any of these files are saved:
+
+| File saved | Effect |
+|---|---|
+| The active template (`.html`, `.hbs`, `.handlebars`, `.tsx`) | Full re-render |
+| Companion `<name>.data.json` | Full re-render with updated data |
+| `rendio.json` or `<name>.rendio.json` | Full re-render with updated config |
+
+## Supported file types
+
+| Extension | How it's handled |
+|---|---|
+| `.html` | Sent to the API as-is (config applied). |
+| `.hbs`, `.handlebars` | Sent as HTML; companion `.data.json` provides Handlebars context. |
+| `.tsx` | Bundled with `esbuild`, rendered to HTML via `renderToStaticMarkup`, then sent. Companion `.data.json` is passed as props. |
+
+## Error handling
+
+Errors from the API appear inline in the preview panel with a short
+description and a request ID for support. Common errors:
+
+| Error | Cause |
+|---|---|
+| `auth_error` | API key missing, revoked, or pasted incorrectly. |
+| `rate_limit` | Too many preview renders in a short window. Wait and retry. |
+| `quota_exceeded` | Monthly render quota exhausted (export only — previews have a separate daily limit). |
+| `timeout` | The render took too long (complex HTML, missing fonts, slow `waitForSelector`). |
+| `validation` | A field in `rendio.json` has an invalid value. |
+
+When an error fires, the previous successful render stays visible in
+the panel — the display doesn't go blank.
+
+## Workspace trust
+
+`rendio.apiKey` is a restricted setting. In an
+[untrusted workspace](https://code.visualstudio.com/docs/editor/workspace-trust)
+(e.g. a freshly cloned repo you haven't accepted yet), the extension
+cannot read the API key and falls back to HTML mode automatically.
+HTML preview still works in untrusted workspaces.
+
+Trust the workspace via **`Workspace Trust`** in the Command Palette to
+enable PDF mode.
+
+## Requirements
+
+- VS Code 1.85 or later.
+- PDF preview: an API key plus an internet connection.
+- TSX templates: `esbuild` installed in the workspace (`npm install -D esbuild`).
+
+## Where to next
+
+<CardGroup cols={2}>
+  <Card title="Highlight Changes" icon="arrow-right-arrow-left" href="/dev-prod-parity/highlight-changes">
+    Word-level diff between saves, three display modes, locked baselines.
+  </Card>
+  <Card title="Render Config" icon="code-compare" href="/dev-prod-parity/render-config">
+    Write render options once. Use them in preview and production.
+  </Card>
+</CardGroup>

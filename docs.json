@@ -2,16 +2,36 @@
   "$schema": "https://mintlify.com/docs.json",
   "theme": "maple",
   "name": "Rendio",
-  "description": "HTML-to-PDF API for developers. Send HTML, get a PDF URL back.",
+  "description": "The PDF Developer Platform. Preview, diff, test, and observe your PDFs — not just generate them.",
   "colors": {
-    "primary": "#0F172A",
-    "light": "#38BDF8",
-    "dark": "#0EA5E9"
+    "primary": "#f59e0b",
+    "light": "#fbbf24",
+    "dark": "#d97706"
   },
   "favicon": "/favicon.svg",
   "logo": {
     "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
+    "dark": "/logo/dark.svg",
+    "href": "https://rendio.dev"
+  },
+  "appearance": {
+    "default": "dark"
+  },
+  "fonts": {
+    "heading": {
+      "family": "Inter",
+      "weight": 700
+    },
+    "body": {
+      "family": "Inter"
+    }
+  },
+  "background": {
+    "decoration": "gradient",
+    "color": {
+      "dark": "#0a0a0a",
+      "light": "#fafaf9"
+    }
   },
   "navigation": {
     "tabs": [
@@ -19,35 +39,45 @@
         "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting Started",
+            "group": "Get Started",
             "pages": [
               "introduction",
               "quickstart",
-              "authentication"
+              "authentication",
+              "account/dashboard"
             ]
           },
           {
-            "group": "VSCode Extension",
-            "pages": [
-              "vscode/overview",
-              "vscode/highlight-changes",
-              "vscode/render-config",
-              "vscode/tsx-templates"
-            ]
-          },
-          {
-            "group": "Core Concepts",
+            "group": "Rendering",
             "pages": [
               "concepts/how-it-works",
-              "concepts/plans-and-quotas"
+              "templates/html",
+              "templates/tsx-react",
+              "guides/screenshots",
+              "guides/dynamic-data",
+              "guides/preview-mode"
             ]
           },
           {
-            "group": "Templates",
+            "group": "Dev/Prod Parity",
             "pages": [
-              "templates/html",
-              "templates/tsx-react",
-              "templates/styling-for-print"
+              "dev-prod-parity/overview",
+              "dev-prod-parity/live-preview",
+              "dev-prod-parity/highlight-changes",
+              "dev-prod-parity/render-config",
+              "dev-prod-parity/mock-data-tsx",
+              "dev-prod-parity/using-rendio-config"
+            ]
+          },
+          {
+            "group": "Customization",
+            "pages": [
+              "guides/page-layout",
+              "guides/headers-footers",
+              "guides/page-breaks",
+              "guides/images-and-fonts",
+              "templates/styling-for-print",
+              "guides/javascript-injection"
             ]
           },
           {
@@ -62,29 +92,29 @@
             ]
           },
           {
-            "group": "Guides",
+            "group": "Advanced",
             "pages": [
-              "guides/dynamic-data",
-              "guides/images-and-fonts",
-              "guides/page-layout",
-              "guides/page-breaks",
-              "guides/headers-footers",
-              "guides/screenshots",
-              "guides/javascript-injection",
+              "guides/server-timing",
               "guides/performance"
             ]
           },
           {
-            "group": "Use Cases",
+            "group": "Integrate",
             "pages": [
               "use-cases/build-an-invoice",
               "use-cases/nextjs",
-              "use-cases/express"
+              "use-cases/express",
+              "use-cases/fastapi",
+              "use-cases/go-http"
             ]
           },
           {
-            "group": "Resources",
+            "group": "Account & Billing",
             "pages": [
+              "concepts/plans-and-quotas",
+              "account/spending-cap",
+              "account/email-notifications",
+              "resources/security-and-reliability",
               "resources/benchmarks",
               "resources/chromium-versions",
               "resources/changelog"
