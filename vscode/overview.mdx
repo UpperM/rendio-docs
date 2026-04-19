@@ -1,0 +1,177 @@
+---
+title: "VSCode extension"
+description: "Write your template. See the real PDF as you type. Diff it against the last save. Ship the same config to production."
+---
+
+The Rendio VSCode extension is the fastest feedback loop for PDF templates
+you can get. It renders your `.html`, `.hbs`, and `.tsx` files as real
+PDFs in a side panel as you type, with three capabilities you won't find
+in browser-based or CLI tools:
+
+<CardGroup cols={2}>
+  <Card title="Live PDF preview" icon="bolt">
+    Real PDF rendering on every save (debounced 500&nbsp;ms). Not an HTML
+    approximation — the actual bytes Chromium produces, via the Rendio
+    API. Multi-page output with proper page breaks and shadows.
+  </Card>
+  <Card title="Highlight Changes" icon="arrow-right-arrow-left" href="/vscode/highlight-changes">
+    Word-level semantic diff between consecutive renders. Three display
+    modes (text / overlay / side-by-side), lockable baseline, jump-to-next
+    navigation. The only way to know what a template tweak *actually*
+    changed in the PDF.
+  </Card>
+  <Card title="Render Config — no drift" icon="code-compare" href="/vscode/render-config">
+    Put margins, page size, headers, and footers in `rendio.json`. The
+    extension uses it for previews. Your production code loads the same
+    file via `@rendio/config`. Preview = production, byte-for-byte.
+  </Card>
+  <Card title="TSX templates" icon="react" href="/vscode/tsx-templates">
+    Write templates as React components. `esbuild` bundles them, a
+    companion `.data.json` supplies props, the output renders like any
+    other HTML.
+  </Card>
+</CardGroup>
+
+## Install
+
+<Steps>
+  <Step title="From the marketplace">
+    Open Extensions (`Ctrl+Shift+X` / `Cmd+Shift+X`), search **Rendio**,
+    install the extension published by `rendio`.
+
+    Or from the command line:
+
+    ```bash
+    code --install-extension rendio.rendio
+    ```
+  </Step>
+  <Step title="Configure your API key">
+    Without a key, the extension shows an HTML-only webview preview — good
+    for layout, not a real PDF. With a key, it hits the Rendio API and
+    displays the actual rendered bytes.
+
+    Two ways to set the key:
+
+    - **Workspace `.env`** (recommended for per-project keys):
+      ```bash
+      # .env at the root of your workspace
+      RENDIO_API_KEY=rk_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      ```
+    - **VSCode settings**: `Ctrl+,`, search `rendio.apiKey`, paste the key.
+
+    <Tip>
+      Get your key at [rendio.dev/dashboard](https://rendio.dev/dashboard).
+      The extension uses `preview: true` for live renders, so every
+      keystroke doesn't burn monthly quota — you get 50 preview renders
+      per day on Free, unlimited on paid.
+    </Tip>
+  </Step>
+  <Step title="Open a template and preview">
+    Open a `.html`, `.hbs`, `.handlebars`, or `.tsx` file, then press
+    `Ctrl+Shift+R` / `Cmd+Shift+R`.
+
+    The Rendio panel opens to the side. Edit the file — the preview
+    updates on every keystroke (debounced 500&nbsp;ms) and on every save.
+  </Step>
+</Steps>
+
+## Template formats
+
+| Format | How it's rendered |
+|---|---|
+| `.html` | Sent to the API as-is (with any `*.rendio.json` config applied). |
+| `.hbs`, `.handlebars` | Sent as `html`; companion `<name>.data.json` sidecar (if present) supplies `data` for Handlebars interpolation. |
+| `.tsx` | Bundled in-process with `esbuild`, rendered to HTML via React's `renderToStaticMarkup`, then sent. Companion `<name>.data.json` is passed as props. |
+
+## HTML-only preview (no API key)
+
+When no API key is configured, the extension falls back to rendering your
+HTML directly in a VSCode webview sized to an A4 page, with dashed lines
+marking implied page boundaries. This mode never calls the Rendio API —
+useful for laying out a template before wiring it to production.
+
+The status bar shows `HTML preview` so you can tell which mode you're in
+at a glance. Once you add a key, the same file starts rendering as a real
+PDF.
+
+## Mock data
+
+Handlebars templates interpolate from a companion `.data.json` file. TSX
+templates use the same file as React props. Create or open the sidecar
+with **`Rendio: Edit Mock Data`** — the extension creates the file if it
+doesn't exist, and re-renders the preview whenever you save it.
+
+```
+templates/
+├── invoice.hbs
+├── invoice.data.json       ← mock data for Handlebars
+└── invoice.rendio.json     ← render options (see /vscode/render-config)
+```
+
+## Commands
+
+| Command | Shortcut | What it does |
+|---|---|---|
+| `Rendio: Preview to Side` | `Ctrl+Shift+R` / `Cmd+Shift+R` | Open the PDF preview panel |
+| `Rendio: Toggle Highlight Changes` | `Ctrl+Alt+D` / `Cmd+Alt+D` | Enable / disable the diff feature |
+| `Rendio: Lock Reference Snapshot` | — | Pin the current render as diff baseline |
+| `Rendio: Unlock Reference Snapshot` | — | Resume auto-advancing the baseline |
+| `Rendio: Jump to Next Change` | — | Scroll to the next diff in the preview |
+| `Rendio: Select Page Size` | — | Switch between A4 / A3 / Letter / Legal / Tabloid |
+| `Rendio: Edit Mock Data` | — | Open / create the companion `.data.json` |
+| `Rendio: Export PDF` | — | Render without the preview watermark, save to disk |
+
+## Settings
+
+| Setting | Default | Purpose |
+|---|---|---|
+| `rendio.apiKey` | *(empty)* | API key for PDF preview and export |
+| `rendio.apiUrl` | `https://api.rendio.dev` | Override API base URL (self-hosted / dev) |
+| `rendio.diff.enabled` | `false` | Enable Highlight Changes by default |
+| `rendio.diff.mode` | `text` | Default diff mode — `text`, `overlay`, or `sideBySide` |
+| `rendio.diff.colorAdded` | `#22c55e` | Highlight color for added words |
+| `rendio.diff.colorRemoved` | `#ef4444` | Marker color for removed words |
+
+## Workspace trust
+
+`rendio.apiKey` is a **restricted** setting — it can only be read in
+[trusted workspaces](https://code.visualstudio.com/docs/editor/workspace-trust).
+Opening an untrusted workspace (a cloned repo you haven't accepted yet)
+disables PDF preview until you trust the workspace. HTML-only preview
+still works.
+
+## Status bar
+
+While the preview is open, the status bar shows the last render's time
+and size — e.g. `312 ms · 84.1 KB`. When Highlight Changes is on, it
+switches to a diff summary — `Changes: +12 −4`.
+
+## Export to disk
+
+`Rendio: Export PDF` renders with `preview: false` (no watermark) and
+opens a save dialog. This command **does** consume your monthly quota.
+
+## Requirements
+
+- VSCode 1.85 or later.
+- For PDF preview: an API key plus an internet connection.
+- For `.tsx` templates: `esbuild` installed in your project or globally
+  (`npm install -D esbuild`).
+
+## Where to next
+
+<CardGroup cols={3}>
+  <Card title="Highlight Changes" icon="arrow-right-arrow-left" href="/vscode/highlight-changes">
+    Word-level diff, three display modes, locked baselines.
+  </Card>
+  <Card title="Render Config" icon="code-compare" href="/vscode/render-config">
+    Same config file in preview and production — no drift.
+  </Card>
+  <Card title="TSX templates" icon="react" href="/vscode/tsx-templates">
+    React components as PDF templates with esbuild + props.
+  </Card>
+</CardGroup>
+
+## Marketplace
+
+[marketplace.visualstudio.com/items?itemName=rendio.rendio](https://marketplace.visualstudio.com/items?itemName=rendio.rendio)

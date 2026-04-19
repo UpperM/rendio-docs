@@ -27,6 +27,15 @@
             ]
           },
           {
+            "group": "VSCode Extension",
+            "pages": [
+              "vscode/overview",
+              "vscode/highlight-changes",
+              "vscode/render-config",
+              "vscode/tsx-templates"
+            ]
+          },
+          {
             "group": "Core Concepts",
             "pages": [
               "concepts/how-it-works",
@@ -71,12 +80,6 @@
               "use-cases/build-an-invoice",
               "use-cases/nextjs",
               "use-cases/express"
-            ]
-          },
-          {
-            "group": "Tools",
-            "pages": [
-              "tools/vscode"
             ]
           },
           {

@@ -1,0 +1,129 @@
+---
+title: "Highlight Changes"
+description: "Word-level semantic diff between renders — see exactly what a template edit changed in the PDF."
+---
+
+Templates are deceptive. A one-line CSS tweak can shift an invoice's
+totals column by three pixels and push a row to page 2. A Handlebars
+conditional re-ordering can move a paragraph you weren't expecting.
+**Highlight Changes** compares every render to the previous one, extracts
+the PDF's text with `pdfjs-dist`, and shows you exactly what moved.
+
+<Tip>
+  Toggle with `Ctrl+Alt+D` / `Cmd+Alt+D` or the **Rendio: Toggle
+  Highlight Changes** command. Or turn it on permanently via the
+  `rendio.diff.enabled` setting.
+</Tip>
+
+## How it works
+
+After each render, the extension:
+
+1. Extracts tokenized text + positions from the PDF (`pdfjs-dist`).
+2. Runs a Longest-Common-Subsequence diff against the previous render.
+3. Paints the additions / removals on top of the PDF in the preview pane.
+4. Updates the status bar with a summary — `Changes: +12 −4`.
+
+No server round-trip — the diff runs entirely inside the extension, so it
+doesn't cost quota and it's responsive.
+
+## Display modes
+
+Switch via the toolbar above the PDF or via the
+`rendio.diff.mode` setting.
+
+<Tabs>
+  <Tab title="Text">
+    **Default.** Added words are highlighted in green on the current
+    render. Removed words are marked in the right margin at their former
+    position. Best for copy edits and content changes — you can read the
+    PDF with diff markers overlaid.
+  </Tab>
+  <Tab title="Overlay">
+    Crossfade between the previous and current render with an opacity
+    slider. Best for layout changes — move the slider back and forth to
+    visually "scrub" the difference. Elements that shifted a few pixels
+    become obvious.
+  </Tab>
+  <Tab title="Side-by-side">
+    Previous render on the left, current on the right, with diff overlay
+    on both. Best for larger reviews where you want to see both states at
+    once without toggling.
+  </Tab>
+</Tabs>
+
+## Lock / unlock the baseline
+
+By default each new render becomes the baseline for the next comparison.
+That's perfect for iterative polish, but sometimes you want to **pin** a
+"known good" render and compare every subsequent edit against it — for
+instance, before starting a large refactor.
+
+- **Lock**: click the lock button in the diff toolbar, or run
+  `Rendio: Lock Reference Snapshot`. All future renders will be diffed
+  against this locked snapshot until you unlock.
+- **Unlock**: click the button again, or run
+  `Rendio: Unlock Reference Snapshot`. The next render becomes the new
+  auto-advancing baseline.
+
+Locked baselines persist across VSCode sessions — close the editor,
+re-open, and your reference is still the one you pinned.
+
+## Changes panel
+
+A collapsible panel at the bottom of the preview lists every added /
+removed word group with `+` and `−` indicators. Click any item to scroll
+the PDF to where the change happened. Useful when a diff summary says
+`+12 −4` and you need to find the 12 additions quickly.
+
+## Jump to next change
+
+`Rendio: Jump to Next Change` scrolls the PDF to the next diff region
+and cycles through them. Handy keyboard-driven review for large
+documents.
+
+## Status bar summary
+
+While Highlight Changes is on, the status bar shows:
+
+| Display | Meaning |
+|---|---|
+| `Changes: +12 −4` | 12 words added, 4 removed. Same page count. |
+| `Changes: +1 page, +47 −3` | A new page appeared. 47 additions, 3 removals. |
+| `Changes: −1 page, +2 −18` | A page disappeared. Net 16 removals. |
+
+## Customization
+
+| Setting | Type | Default | Purpose |
+|---|---|---|---|
+| `rendio.diff.enabled` | boolean | `false` | Turn Highlight Changes on by default |
+| `rendio.diff.mode` | enum | `text` | Default display mode — `text`, `overlay`, `sideBySide` |
+| `rendio.diff.colorAdded` | color | `#22c55e` | Highlight color for added words |
+| `rendio.diff.colorRemoved` | color | `#ef4444` | Marker color for removed words |
+
+Colors use VSCode's native color picker in the Settings UI — click the
+swatch, pick any color you like.
+
+## When to use each mode
+
+| Task | Recommended mode |
+|---|---|
+| Copy edits, typo fixes | **Text** — words highlighted inline |
+| Styling / CSS changes | **Overlay** — scrub the crossfade slider to see pixel shifts |
+| Handlebars logic changes producing large content deltas | **Side-by-side** — full before/after visible at once |
+| Checking that a "cosmetic" tweak didn't affect page count | Any mode — the status bar `+N page` prefix flags it |
+
+## Limitations
+
+- The diff is **text-based**. Pure graphical changes (a background color
+  swap with no text movement, an SVG path tweak) won't show up in the
+  diff overlay. Use overlay mode to scrub visually.
+- Very large PDFs (hundreds of pages) may hit the diff algorithm's cell
+  cap and fall back to a whole-page flag. Typical invoices, reports, and
+  documents are well within the limit.
+
+## See also
+
+- [Render Config](/vscode/render-config) — write config once, render
+  consistently in preview and production.
+- [TSX templates](/vscode/tsx-templates) — React components as templates.

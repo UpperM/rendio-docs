@@ -1,0 +1,164 @@
+---
+title: "TSX templates"
+description: "Write templates as React components. The extension bundles, renders, and previews them."
+---
+
+If you already use TSX everywhere else in your stack, you can write
+Rendio templates the same way. The VSCode extension bundles `.tsx` files
+with `esbuild` on the fly, renders them via `renderToStaticMarkup`, and
+sends the output to the API just like any other HTML.
+
+## Template shape
+
+A TSX template is a file with a default-exported component:
+
+```tsx
+// templates/Invoice.tsx
+interface Props {
+  company: string;
+  total: number;
+  items: { description: string; qty: number; price: number }[];
+}
+
+export default function Invoice({ company, total, items }: Props) {
+  return (
+    <html>
+      <head>
+        <style>{`
+          body { font-family: 'Inter', sans-serif; padding: 48px; font-size: 13px; }
+          h1 { font-size: 28px; letter-spacing: -0.5px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 24px; }
+          th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #eee; }
+          .total { font-weight: 700; font-size: 16px; border-top: 2px solid #000; }
+        `}</style>
+      </head>
+      <body>
+        <h1>Invoice for {company}</h1>
+        <table>
+          <thead>
+            <tr><th>Description</th><th>Qty</th><th>Price</th></tr>
+          </thead>
+          <tbody>
+            {items.map((item, i) => (
+              <tr key={i}>
+                <td>{item.description}</td>
+                <td>{item.qty}</td>
+                <td>${item.price.toFixed(2)}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="total">
+              <td colSpan={2}>Total</td>
+              <td>${total.toFixed(2)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </body>
+    </html>
+  );
+}
+```
+
+## Props via `.data.json`
+
+Props come from a companion `<name>.data.json` file:
+
+```json
+{
+  "company": "Acme Corp",
+  "total": 4320,
+  "items": [
+    { "description": "UI design", "qty": 20, "price": 80 },
+    { "description": "Frontend dev", "qty": 25, "price": 80 }
+  ]
+}
+```
+
+Place it next to the TSX file:
+
+```
+templates/
+├── Invoice.tsx
+└── Invoice.data.json
+```
+
+Editing `.data.json` re-renders the preview. Run **`Rendio: Edit Mock
+Data`** to open (or create) the sidecar for the current file.
+
+## Requirements
+
+- `esbuild` installed in your workspace or globally:
+  ```bash
+  npm install -D esbuild
+  ```
+  The extension shells out to the local binary. No global install needed
+  if `esbuild` is a dev dependency of the current workspace.
+
+## Server-side rendering only
+
+TSX templates render with `react-dom/server`'s `renderToStaticMarkup` —
+the same pure-HTML output you'd get from any SSR pipeline.
+
+| Works | Doesn't work |
+|---|---|
+| Pure-functional components, props, conditionals, `.map()` | `useState`, `useEffect`, `useRef`, any other hook |
+| Inline `<style>` tags | CSS-in-JS runtime engines (styled-components emit, Emotion runtime) |
+| `<img src="data:image/…">`, base64 assets | `next/image`, `next/link`, any framework-specific component |
+| Server-safe utilities (`Intl.NumberFormat`, `date-fns`) | Browser-only APIs (`window`, `localStorage`, `navigator`) |
+
+## Using the same component in production
+
+`renderToStaticMarkup` at your build step produces HTML you can hand
+straight to the SDK:
+
+```ts
+import { renderToStaticMarkup } from "react-dom/server";
+import Rendio from "rendio";
+import { resolveConfig } from "@rendio/config";
+import Invoice from "./templates/Invoice";
+
+const rendio = new Rendio();
+
+export async function renderInvoice(props: InvoiceProps): Promise<string> {
+  const config = await resolveConfig("./templates/Invoice.tsx");
+  const html = renderToStaticMarkup(<Invoice {...props} />);
+
+  const pdf = await rendio.pdfs.create({ html, ...config });
+  return pdf.url;
+}
+```
+
+The extension uses the same component file and the same
+[render config](/vscode/render-config) — the preview you iterate on in
+VSCode matches production byte-for-byte.
+
+## Tailwind CSS
+
+Ship a pre-built CSS file alongside the template and reference it from
+`<name>.rendio.json`:
+
+```json
+{
+  "css": "./Invoice.tailwind.css"
+}
+```
+
+The extension (and `@rendio/config`) inline the CSS file's contents into
+the render. Build with `tailwindcss -i input.css -o Invoice.tailwind.css`
+as part of your template build step.
+
+## Troubleshooting
+
+| Symptom | Cause |
+|---|---|
+| `esbuild: command not found` | Install with `npm install -D esbuild` in the workspace |
+| Empty preview | The component must have a **default export** — named exports are ignored |
+| Props undefined in output | Check the `.data.json` sidecar exists and is valid JSON |
+| Hooks error on preview | You're using client hooks (`useState`, etc.) — rewrite as pure-functional |
+
+## See also
+
+- [VSCode overview](/vscode/overview)
+- [Render Config](/vscode/render-config) — applies to TSX the same way it does to HTML / HBS.
+- [TSX / React templates (without VSCode)](/templates/tsx-react) — production code patterns.
