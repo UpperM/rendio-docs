@@ -1,0 +1,252 @@
+/* ============================================================
+   Rendio Docs — Custom Theme
+   Design system: warm mono + amber signal (ADR 0002)
+   ============================================================ */
+
+:root {
+  --rd-amber: #f59e0b;
+  --rd-amber-hi: #fbbf24;
+  --rd-amber-bg: rgba(245, 158, 11, 0.10);
+  --rd-amber-ring: rgba(245, 158, 11, 0.35);
+  --rd-amber-subtle: rgba(245, 158, 11, 0.06);
+  --rd-border-dark: #1f1f1f;
+}
+
+
+/* ── Layout — widen content area to use available space ─────── */
+
+#content-area {
+  max-width: 56rem !important; /* max-w-4xl — 896px, up from 672px */
+}
+
+#content-area h2 {
+  margin-top: 2rem !important;
+  margin-bottom: 0.75rem !important;
+}
+
+#content-area h3 {
+  margin-top: 1.5rem !important;
+  margin-bottom: 0.5rem !important;
+}
+
+:root:not(.dark) {
+  --rd-border-dark: #e7e5e4;
+  --rd-amber-subtle: rgba(245, 158, 11, 0.04);
+}
+
+::selection {
+  background: #f59e0b;
+  color: #0a0a0a;
+}
+
+
+/* ── Confirmed Mintlify selectors ────────────────────────────── */
+
+/* Navbar border */
+#navbar {
+  border-bottom: 1px solid var(--rd-border-dark);
+}
+
+/* Primary CTA button in header */
+[data-component-name="primary-header-button"] {
+  background: var(--rd-amber) !important;
+  color: #0a0a0a !important;
+  font-weight: 700 !important;
+  transition: opacity 0.15s ease;
+}
+
+[data-component-name="primary-header-button"]:hover {
+  opacity: 0.85;
+}
+
+/* Theme toggle hover */
+[data-component-name="theme-toggle"]:hover {
+  color: var(--rd-amber) !important;
+}
+
+/* Navigation tabs (Documentation / API Reference) */
+.nav-tabs-item[data-active] {
+  color: var(--rd-amber) !important;
+  border-bottom-color: var(--rd-amber) !important;
+}
+
+.nav-tabs-item:hover {
+  color: var(--rd-amber-hi) !important;
+}
+
+/* Table of Contents (right sidebar) */
+toc-item[data-active],
+toc-item[data-active-deepest] {
+  color: var(--rd-amber) !important;
+  border-left-color: var(--rd-amber) !important;
+}
+
+toc-item:hover {
+  color: var(--rd-amber-hi) !important;
+}
+
+/* Badges */
+[data-badge] {
+  border-color: var(--rd-amber-ring) !important;
+  color: var(--rd-amber) !important;
+}
+
+/* Mermaid diagram containers */
+[data-component-name="mermaid-container"] {
+  border: 1px solid var(--rd-border-dark);
+  border-radius: 6px;
+  padding: 1rem;
+}
+
+
+/* ── Standard HTML selectors (safe) ──────────────────────────── */
+
+/* Sidebar active page (aria-current is standard) */
+nav a[aria-current="page"] {
+  color: var(--rd-amber) !important;
+  font-weight: 600;
+}
+
+/* Links in article body */
+#content-area a:not([class]) {
+  color: var(--rd-amber);
+  text-decoration-color: rgba(245, 158, 11, 0.3);
+  text-underline-offset: 2px;
+  transition: color 0.15s ease, text-decoration-color 0.15s ease;
+}
+
+#content-area a:not([class]):hover {
+  color: var(--rd-amber-hi);
+  text-decoration-color: var(--rd-amber-hi);
+}
+
+/* Tabs (ARIA standard) */
+[role="tablist"] [aria-selected="true"] {
+  color: var(--rd-amber) !important;
+  border-bottom-color: var(--rd-amber) !important;
+}
+
+[role="tablist"] button:hover {
+  color: var(--rd-amber-hi) !important;
+}
+
+/* Code blocks — warm stone background + smaller font to reduce overflow */
+pre {
+  font-size: 13px !important;
+}
+
+pre code {
+  font-size: inherit !important;
+  tab-size: 2;
+}
+
+.dark pre,
+:root.dark pre {
+  background: transparent !important;
+  border: none !important;
+}
+
+.dark .code-block-background,
+:root.dark .code-block-background {
+  background: #060606 !important;
+  border: 1px solid var(--rd-border-dark) !important;
+}
+
+:root:not(.dark) pre {
+  background: transparent !important;
+  border: none !important;
+}
+
+:root:not(.dark) .code-block-background {
+  background: #f4f4f3 !important;
+  border: 1px solid #e7e5e4 !important;
+}
+
+/* Tables — prevent overflow on narrow viewports */
+table {
+  font-size: 13px;
+}
+
+table code {
+  font-size: 12px !important;
+  word-break: break-all;
+}
+
+/* Copy button hover on code blocks */
+pre button:hover {
+  color: var(--rd-amber) !important;
+}
+
+/* Inline code — amber chip */
+#content-area :not(pre) > code {
+  background: var(--rd-amber-bg) !important;
+  border: 1px solid var(--rd-amber-ring) !important;
+  color: var(--rd-amber) !important;
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 0.88em;
+}
+
+:root:not(.dark) #content-area :not(pre) > code {
+  background: rgba(245, 158, 11, 0.08) !important;
+  border-color: rgba(245, 158, 11, 0.25) !important;
+}
+
+/* Tables */
+table thead th {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+
+table tbody tr:hover {
+  background: var(--rd-amber-subtle);
+}
+
+/* Focus rings */
+*:focus-visible {
+  outline-color: var(--rd-amber) !important;
+  outline-offset: 2px;
+}
+
+/* Search highlight */
+mark {
+  background: var(--rd-amber-bg) !important;
+  color: var(--rd-amber) !important;
+}
+
+/* Footer links */
+footer a:hover {
+  color: var(--rd-amber) !important;
+}
+
+/* Pagination (prev/next — standard rel attributes) */
+a[rel="prev"]:hover,
+a[rel="next"]:hover {
+  border-color: var(--rd-amber-ring) !important;
+  color: var(--rd-amber) !important;
+}
+
+/* Scrollbar (dark mode) */
+.dark ::-webkit-scrollbar,
+:root.dark ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.dark ::-webkit-scrollbar-track,
+:root.dark ::-webkit-scrollbar-track {
+  background: #0a0a0a;
+}
+
+.dark ::-webkit-scrollbar-thumb,
+:root.dark ::-webkit-scrollbar-thumb {
+  background: #2a2a2a;
+  border-radius: 3px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover,
+:root.dark ::-webkit-scrollbar-thumb:hover {
+  background: #3a3a3a;
+}
