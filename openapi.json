@@ -7,7 +7,7 @@
   },
   "servers": [
     {
-      "url": "https://rendio.dev",
+      "url": "https://rendio.dev/api",
       "description": "Production"
     }
   ],
@@ -94,7 +94,14 @@
               "string",
               "null"
             ],
-            "description": "ISO 8601 UTC timestamp when the download URL expires. Null for preview renders."
+            "description": "ISO 8601 UTC timestamp when the file is deleted from storage. Null for preview renders."
+          },
+          "urlExpiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ISO 8601 UTC timestamp when the signed download URL expires. Null/absent for public files. Call GET /files/:id to get a fresh URL."
           },
           "meta": {
             "type": "object",
@@ -155,7 +162,14 @@
               "string",
               "null"
             ],
-            "description": "Expiry timestamp (ISO 8601 UTC), or null."
+            "description": "ISO 8601 UTC timestamp when the file is deleted from storage, or null."
+          },
+          "urlExpiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ISO 8601 UTC timestamp when the signed download URL expires. Null/absent for public files. Call GET /files/:id again to get a fresh URL."
           }
         },
         "required": [
@@ -268,7 +282,7 @@
     "parameters": {}
   },
   "paths": {
-    "/api/v1/render": {
+    "/v1/render": {
       "post": {
         "summary": "Render HTML or URL to PDF / PNG / JPEG",
         "description": "Converts HTML markup or a remote URL into a PDF (default), PNG, or JPEG. Set `response=url` (default) to receive a download link; set `response=buffer` to stream bytes directly. Exactly one of `html` or `source` must be supplied.",
@@ -318,6 +332,29 @@
                     "maxLength": 2048,
                     "format": "uri",
                     "description": "URL to load and render. Exactly one of `html` or `source` must be provided. Requires Starter plan or above."
+                  },
+                  "storage": {
+                    "type": "object",
+                    "properties": {
+                      "visibility": {
+                        "type": "string",
+                        "enum": [
+                          "public",
+                          "private"
+                        ],
+                        "default": "public",
+                        "description": "`public` serves the file on a permanent public URL. `private` generates a signed URL with a configurable TTL."
+                      },
+                      "signedUrlTtl": {
+                        "type": "integer",
+                        "minimum": 60,
+                        "maximum": 604800,
+                        "description": "Signed URL expiry in seconds (60–604800). Only used when `visibility=private`."
+                      }
+                    },
+                    "default": {
+                      "visibility": "public"
+                    }
                   },
                   "navTimeoutMs": {
                     "type": "integer",
@@ -634,7 +671,7 @@
         }
       }
     },
-    "/api/v1/files/{id}": {
+    "/v1/files/{id}": {
       "get": {
         "summary": "Get file metadata by ID",
         "description": "Returns metadata and the download URL for a previously rendered file owned by the authenticated user.",
@@ -701,7 +738,7 @@
         }
       }
     },
-    "/api/health": {
+    "/health": {
       "get": {
         "summary": "Liveness / readiness probe",
         "description": "Returns service health status. A 200 response with `status: \"healthy\"` indicates full readiness. `status: \"degraded\"` means at least one dependency is down. 503 is returned when the database is unreachable.",

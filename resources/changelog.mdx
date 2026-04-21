@@ -34,6 +34,23 @@ SDKs. For incident history, see [status.rendio.dev](https://status.rendio.dev).
 
 ---
 
+## Unreleased — April 21, 2026
+
+### Added
+
+- **Private file storage.** New `storage` parameter on `POST /api/v1/render`
+  with `visibility: "private"` and configurable `signedUrlTtl`. Private files
+  are served via HMAC-signed URLs that expire independently of file retention.
+- **`urlExpiresAt` response field.** Both render and files endpoints return
+  `urlExpiresAt` for private files — the ISO 8601 timestamp when the signed
+  URL expires.
+- **`ttl` query parameter on `GET /api/v1/files/{id}`.** Refresh a signed URL
+  with a custom TTL without re-rendering.
+- **SDK support (Node, Python, Go).** `StorageOptions` in create params,
+  `urlExpiresAt` on result types, and `ttl` on `pdfs.get()`.
+
+---
+
 ## Unreleased — April 19, 2026
 
 ### Changed

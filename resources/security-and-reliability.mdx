@@ -14,8 +14,11 @@ non-EU CDN domain.
   between requests. Each render gets a fresh Chromium context that is
   destroyed after the response is sent.
 - **Storage**: Rendered files are stored in Cloudflare R2 (S3-compatible)
-  with server-side encryption at rest. CDN URLs are signed and expire
-  per your plan's retention policy (24h Free, 30 days Starter/Pro).
+  with server-side encryption at rest. **Public files** are served on
+  permanent CDN URLs. **Private files** (`storage.visibility: "private"`)
+  use HMAC-signed URLs with a configurable TTL (default 1 hour). Files
+  are automatically deleted after the plan's retention window (24h Free,
+  30 days Starter/Pro).
 - **Database**: SQLite with encrypted backups. Auth sessions, API keys,
   and usage records are stored here. No render content is persisted in
   the database.

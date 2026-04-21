@@ -58,6 +58,85 @@ Two response modes, chosen via `response`:
 - **`response: "buffer"`** — raw bytes stream back in the response body.
   No file is stored on Rendio's CDN. No storage quota consumed.
 
+### Public vs. private files
+
+By default, files are **public** — served on a permanent, unsigned CDN URL
+that anyone with the link can access. For sensitive documents (invoices,
+contracts, medical records), use **private** storage:
+
+```json
+{
+  "html": "<h1>Confidential Report</h1>",
+  "storage": {
+    "visibility": "private",
+    "signedUrlTtl": 300
+  }
+}
+```
+
+Private files are stored in a separate bucket and served via **HMAC-signed
+URLs** that expire after `signedUrlTtl` seconds (default: 1 hour, max: 7
+days). The response includes both timestamps:
+
+- `expiresAt` — when the **file** is deleted from storage (plan retention: 24h Free, 30d Starter/Pro).
+- `urlExpiresAt` — when the **signed URL** expires. After this, the URL returns 410 Gone.
+
+To generate a fresh signed URL for an existing file, call
+`GET /api/v1/files/{id}?ttl=300`. This does not re-render — it returns
+a new signed URL for the same file. Use this when sharing time-limited
+download links or when the previous URL has expired.
+
+<Tabs>
+  <Tab title="Node">
+    ```ts
+    // Render with private storage
+    const pdf = await rendio.pdfs.create({
+      html: "<h1>Invoice #42</h1>",
+      storage: { visibility: "private", signedUrlTtl: 3600 },
+    });
+    console.log(pdf.url);           // signed URL (1h)
+    console.log(pdf.urlExpiresAt);  // "2026-04-21T13:00:00.000Z"
+
+    // Later — refresh the signed URL
+    const fresh = await rendio.pdfs.get(pdf.id, { ttl: 300 });
+    console.log(fresh.url);         // new signed URL (5min)
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    # Render with private storage
+    pdf = client.pdfs.create(
+        html="<h1>Invoice #42</h1>",
+        storage={"visibility": "private", "signed_url_ttl": 3600},
+    )
+    print(pdf.url)             # signed URL (1h)
+    print(pdf.url_expires_at)  # "2026-04-21T13:00:00.000Z"
+
+    # Later — refresh the signed URL
+    fresh = client.pdfs.get(pdf.id, ttl=300)
+    print(fresh.url)           # new signed URL (5min)
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    // Render with private storage
+    pdf, _ := client.Pdfs.Create(ctx, rendio.PdfCreateParams{
+        HTML: "<h1>Invoice #42</h1>",
+        Storage: &rendio.StorageOptions{
+            Visibility:   "private",
+            SignedURLTTL: rendio.Int(3600),
+        },
+    })
+    fmt.Println(pdf.URL)          // signed URL (1h)
+    fmt.Println(*pdf.URLExpiresAt) // "2026-04-21T13:00:00.000Z"
+
+    // Later — refresh the signed URL
+    fresh, _ := client.Pdfs.Get(ctx, pdf.ID, &rendio.PdfGetOptions{TTL: rendio.Int(300)})
+    fmt.Println(fresh.URL)        // new signed URL (5min)
+    ```
+  </Tab>
+</Tabs>
+
 ## `waitUntil` — when is the page "ready"?
 
 The default is `domcontentloaded`, which waits for the DOM tree to be parsed

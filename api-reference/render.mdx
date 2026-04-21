@@ -84,6 +84,23 @@ Authorization: Bearer rk_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
   `response: "buffer"` and in the CDN URL path for `response: "url"`.
 </ParamField>
 
+### Storage
+
+<ParamField body="storage" type="object">
+  Controls file visibility and signed URL behavior. Defaults to `{ "visibility": "public" }`.
+</ParamField>
+
+<ParamField body="storage.visibility" type="string" default="public">
+  `"public"` — permanent CDN URL, no signature needed.
+  `"private"` — HMAC-signed URL with a configurable TTL. Requires
+  `GET /api/v1/files/{id}` to refresh the URL after expiry.
+</ParamField>
+
+<ParamField body="storage.signedUrlTtl" type="integer" default="3600">
+  Signed URL expiry in seconds. Range `60` – `604800` (7 days).
+  Only used when `storage.visibility` is `"private"`. Defaults to 3600 (1 hour).
+</ParamField>
+
 ### Layout
 
 <ParamField body="landscape" type="boolean" default="false" />
@@ -170,6 +187,7 @@ Authorization: Bearer rk_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
   "pages": 2,
   "size": 84213,
   "expiresAt": "2026-04-26T12:00:00.000Z",
+  "urlExpiresAt": null,
   "meta": {
     "chromiumVersion": "128.0.6613.120",
     "renderTimeMs": 312
@@ -180,11 +198,15 @@ Authorization: Bearer rk_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 <ResponseField name="id" type="string">
   Opaque file ID (format `rd_[a-f0-9]{16}`). Use with `GET /api/v1/files/{id}`.
 </ResponseField>
-<ResponseField name="url" type="string">CDN URL.</ResponseField>
+<ResponseField name="url" type="string">CDN URL. Signed with expiry for private files.</ResponseField>
 <ResponseField name="pages" type="integer">Page count (PDF only; 0 for screenshots).</ResponseField>
 <ResponseField name="size" type="integer">File size in bytes.</ResponseField>
 <ResponseField name="expiresAt" type="string | null">
-  ISO&nbsp;8601 expiration. `null` if retention is indefinite for your plan.
+  ISO&nbsp;8601 timestamp when the file is deleted from storage. `null` for preview renders.
+</ResponseField>
+<ResponseField name="urlExpiresAt" type="string | null">
+  ISO&nbsp;8601 timestamp when the signed URL expires. `null` for public files.
+  Call `GET /api/v1/files/{id}` to get a fresh URL.
 </ResponseField>
 <ResponseField name="meta.chromiumVersion" type="string | null" />
 <ResponseField name="meta.renderTimeMs" type="integer | null" />

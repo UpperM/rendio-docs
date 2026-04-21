@@ -60,11 +60,12 @@ const pdf = await rendio.pdfs.create({
   pageSize: "A4",
 });
 
-pdf.id;        // "rd_abc1234567890def"
-pdf.url;       // "https://cdn.rendio.dev/f/rd_...pdf"
-pdf.pages;     // 1
-pdf.size;      // bytes
-pdf.expiresAt; // ISO 8601, null on preview renders
+pdf.id;            // "rd_abc1234567890def"
+pdf.url;           // "https://cdn.rendio.dev/f/rd_...pdf"
+pdf.pages;         // 1
+pdf.size;          // bytes
+pdf.expiresAt;     // ISO 8601 — when the file is deleted from storage
+pdf.urlExpiresAt;  // ISO 8601 — when the signed URL expires (null for public)
 pdf.meta.chromiumVersion;
 pdf.meta.renderTimeMs;
 ```
@@ -169,7 +170,7 @@ import type {
 
 | Type | Shape |
 |---|---|
-| `PdfUrlResult` | `{ id, url, pages, size, expiresAt, meta }` |
+| `PdfUrlResult` | `{ id, url, pages, size, expiresAt, urlExpiresAt, meta }` |
 | `PdfBufferResult` | `{ buffer: ArrayBuffer, meta }` |
 | `RenderMeta` | `{ chromiumVersion?, renderTimeMs?, phases?, rateLimit? }` |
 
@@ -188,7 +189,7 @@ populated:
 
 | Type | Fields |
 |---|---|
-| `PdfCreateUrlResult` | `id`, `url`, `pages`, `size`, `expires_at`, `meta` |
+| `PdfCreateUrlResult` | `id`, `url`, `pages`, `size`, `expires_at`, `url_expires_at`, `meta` |
 | `PdfBufferResult` | `buffer` (bytes), `meta` |
 | `RenderMeta` | `chromium_version?`, `render_time_ms?`, `phases?`, `rate_limit?` |
 
@@ -198,7 +199,7 @@ Access via `result.url`, `result.pages`, `result.meta.chromium_version`, etc.
 
 | Type | Fields |
 |---|---|
-| `PdfCreateURLResult` | `ID`, `URL`, `Pages`, `Size`, `ExpiresAt`, `Meta` |
+| `PdfCreateURLResult` | `ID`, `URL`, `Pages`, `Size`, `ExpiresAt`, `URLExpiresAt`, `Meta` |
 | `PdfBufferResult` | `Buffer` ([]byte), `Meta` |
 | `RenderMeta` | `ChromiumVersion`, `RenderTimeMs`, `Phases`, `RateLimit` |
 | `RateLimitInfo` | `Limit`, `Remaining`, `ResetAt` |
