@@ -152,6 +152,158 @@ Fetch metadata for a previously rendered file.
 Throws `NotFoundError` when the ID doesn't exist, has expired, or was
 rendered in preview mode (preview files are not indexed).
 
+## `pdfs.merge(params)`
+
+Merge two or more PDFs into a single file. Sources must be file IDs from
+previous renders — URL sources are not yet supported. **Starter plan or above.**
+
+<Tabs>
+  <Tab title="Node">
+    ```ts
+    const merged = await rendio.pdfs.merge({
+      sources: [{ id: cover.id }, { id: report.id }],
+      filename: "full-report",
+    });
+    console.log(merged.url);
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    merged = client.pdfs.merge(
+        sources=[{"id": cover.id}, {"id": report.id}],
+        filename="full-report",
+    )
+    print(merged.url)
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    merged, err := client.Pdfs.Merge(ctx, rendio.PdfMergeParams{
+        Sources:  []rendio.PdfSource{{ID: cover.ID}, {ID: report.ID}},
+        Filename: rendio.String("full-report"),
+    })
+    if err != nil { return err }
+    fmt.Println(merged.URL)
+    ```
+  </Tab>
+</Tabs>
+
+Returns the same shape as `pdfs.create()` in URL mode.
+See [`POST /api/v1/pdfs/merge`](/api-reference/merge) for the full parameter
+reference, plan limits, and error codes.
+
+## `pdfs.extract(params)`
+
+Extract a subset of pages from an existing PDF. **Starter plan or above.**
+
+<Tabs>
+  <Tab title="Node">
+    ```ts
+    const extracted = await rendio.pdfs.extract({
+      source: { id: "rd_abc1234567890def" },
+      pageRanges: "1-3",
+      filename: "summary",
+    });
+    console.log(extracted.url);
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    extracted = client.pdfs.extract(
+        source={"id": "rd_abc1234567890def"},
+        page_ranges="1-3",
+        filename="summary",
+    )
+    print(extracted.url)
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    extracted, err := client.Pdfs.Extract(ctx, rendio.PdfExtractParams{
+        Source:     rendio.PdfSource{ID: "rd_abc1234567890def"},
+        PageRanges: "1-3",
+        Filename:   rendio.String("summary"),
+    })
+    if err != nil { return err }
+    fmt.Println(extracted.URL)
+    ```
+  </Tab>
+</Tabs>
+
+`pageRanges` uses Chromium's 1-indexed format: `"1-3"`, `"1, 3, 5-7"`, `"2-"`.
+Returns the same shape as `pdfs.create()` in URL mode.
+See [`POST /api/v1/pdfs/extract`](/api-reference/extract) for the full parameter
+reference and error codes.
+
+## Post-processing with `pdfs.create()`
+
+The `post` option applies watermarking, password protection, and linearization
+after rendering. It is also accepted by `merge` and `extract`.
+
+<Tabs>
+  <Tab title="Node">
+    ```ts
+    const pdf = await rendio.pdfs.create({
+      html: "<h1>Confidential</h1>",
+      post: {
+        watermark: {
+          text: "DRAFT",
+          opacity: 0.2,
+          rotation: -45,
+          repeat: true,
+        },
+        protection: {
+          ownerPassword: "owner-secret",
+          permissions: { print: true, copy: false, modify: false },
+        },
+      },
+    });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    pdf = client.pdfs.create(
+        html="<h1>Confidential</h1>",
+        post={
+            "watermark": {
+                "text": "DRAFT",
+                "opacity": 0.2,
+                "rotation": -45,
+                "repeat": True,
+            },
+            "protection": {
+                "owner_password": "owner-secret",
+                "permissions": {"print": True, "copy": False, "modify": False},
+            },
+        },
+    )
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    pdf, err := client.Pdfs.Create(ctx, rendio.PdfCreateParams{
+        HTML: "<h1>Confidential</h1>",
+        Post: &rendio.PostOptions{
+            Watermark: &rendio.WatermarkOptions{
+                Text:     rendio.String("DRAFT"),
+                Opacity:  rendio.Float64(0.2),
+                Rotation: rendio.Float64(-45),
+                Repeat:   rendio.Bool(true),
+            },
+            Protection: &rendio.ProtectionOptions{
+                OwnerPassword: rendio.String("owner-secret"),
+                Permissions: &rendio.PermissionOptions{
+                    Print:  rendio.Bool(true),
+                    Copy:   rendio.Bool(false),
+                    Modify: rendio.Bool(false),
+                },
+            },
+        },
+    })
+    ```
+  </Tab>
+</Tabs>
+
 ## Return types
 
 ### Node / TypeScript
@@ -159,9 +311,16 @@ rendered in preview mode (preview files are not indexed).
 ```ts
 import type {
   PdfCreateParams,
+  PdfMergeParams,
+  PdfExtractParams,
+  PdfSource,
   PdfUrlResult,
   PdfBufferResult,
   RenderMeta,
+  PostOptions,
+  WatermarkOptions,
+  ProtectionOptions,
+  PermissionOptions,
   RendioOptions,
   PageSize,
   ResponseMode,
@@ -173,6 +332,13 @@ import type {
 | `PdfUrlResult` | `{ id, url, pages, size, expiresAt, urlExpiresAt, meta }` |
 | `PdfBufferResult` | `{ buffer: ArrayBuffer, meta }` |
 | `RenderMeta` | `{ chromiumVersion?, renderTimeMs?, phases?, rateLimit? }` |
+| `PdfMergeParams` | `{ sources: PdfSource[], filename?, storage?, post? }` |
+| `PdfExtractParams` | `{ source: PdfSource, pageRanges: string, filename?, storage?, post? }` |
+| `PdfSource` | `{ id: string } \| { url: string }` |
+| `PostOptions` | `{ watermark?, protection?, linearize? }` |
+| `WatermarkOptions` | `{ text?, image?, opacity?, rotation?, position?, repeat?, fontSize?, color? }` |
+| `ProtectionOptions` | `{ password?, ownerPassword?, permissions? }` |
+| `PermissionOptions` | `{ print?, copy?, modify?, annotate? }` |
 
 #### `meta.rateLimit`
 
@@ -192,6 +358,13 @@ populated:
 | `PdfCreateUrlResult` | `id`, `url`, `pages`, `size`, `expires_at`, `url_expires_at`, `meta` |
 | `PdfBufferResult` | `buffer` (bytes), `meta` |
 | `RenderMeta` | `chromium_version?`, `render_time_ms?`, `phases?`, `rate_limit?` |
+| `PdfMergeParams` | `sources`, `filename?`, `storage?`, `post?` |
+| `PdfExtractParams` | `source`, `page_ranges`, `filename?`, `storage?`, `post?` |
+| `PdfSource` | `TypedDict` with `id` or `url` key |
+| `PostOptions` | `watermark?`, `protection?`, `linearize?` |
+| `WatermarkOptions` | `text?`, `image?`, `opacity?`, `rotation?`, `position?`, `repeat?`, `font_size?`, `color?` |
+| `ProtectionOptions` | `password?`, `owner_password?`, `permissions?` |
+| `PermissionOptions` | `print?`, `copy?`, `modify?`, `annotate?` |
 
 Access via `result.url`, `result.pages`, `result.meta.chromium_version`, etc.
 
@@ -203,6 +376,13 @@ Access via `result.url`, `result.pages`, `result.meta.chromium_version`, etc.
 | `PdfBufferResult` | `Buffer` ([]byte), `Meta` |
 | `RenderMeta` | `ChromiumVersion`, `RenderTimeMs`, `Phases`, `RateLimit` |
 | `RateLimitInfo` | `Limit`, `Remaining`, `ResetAt` |
+| `PdfMergeParams` | `Sources []PdfSource`, `Filename *string`, `Storage *StorageOptions`, `Post *PostOptions` |
+| `PdfExtractParams` | `Source PdfSource`, `PageRanges string`, `Filename *string`, `Storage *StorageOptions`, `Post *PostOptions` |
+| `PdfSource` | `ID string`, `URL string` (set one) |
+| `PostOptions` | `Watermark *WatermarkOptions`, `Protection *ProtectionOptions`, `Linearize *bool` |
+| `WatermarkOptions` | `Text *string`, `Image *string`, `Opacity *float64`, `Rotation *float64`, `Position *string`, `Repeat *bool`, `FontSize *float64`, `Color *string` |
+| `ProtectionOptions` | `Password *string`, `OwnerPassword *string`, `Permissions *PermissionOptions` |
+| `PermissionOptions` | `Print *bool`, `Copy *bool`, `Modify *bool`, `Annotate *bool` |
 
 ## Python async client
 
@@ -287,6 +467,10 @@ The Go SDK exposes additional variants for advanced use cases:
 | `Pdfs.CreateBufferWithResponse(ctx, params, opts...)` | `*PdfBufferResult, *http.Response, error` | Buffer mode + raw HTTP response |
 | `Pdfs.Get(ctx, id, opts...)` | `*PdfURLResult, error` | Fetch file metadata |
 | `Pdfs.GetWithResponse(ctx, id, opts...)` | `*PdfURLResult, *http.Response, error` | Metadata + raw HTTP response |
+| `Pdfs.Merge(ctx, params, opts...)` | `*PdfCreateURLResult, error` | Merge PDFs |
+| `Pdfs.MergeWithResponse(ctx, params, opts...)` | `*PdfCreateURLResult, *http.Response, error` | Merge + raw HTTP response |
+| `Pdfs.Extract(ctx, params, opts...)` | `*PdfCreateURLResult, error` | Extract pages |
+| `Pdfs.ExtractWithResponse(ctx, params, opts...)` | `*PdfCreateURLResult, *http.Response, error` | Extract + raw HTTP response |
 
 ## Full parameter reference
 

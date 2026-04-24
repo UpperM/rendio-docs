@@ -1,0 +1,185 @@
+---
+title: "POST /api/v1/pdfs/merge"
+description: "Merge multiple PDFs into a single file."
+api: "POST https://rendio.dev/api/v1/pdfs/merge"
+---
+
+Merges two or more PDFs (by file ID) into a single PDF and returns a CDN URL
+or uploads to your configured storage. **Starter plan or above.**
+
+## Authentication
+
+Bearer token. See [Authentication](/authentication).
+
+```
+Authorization: Bearer rk_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+## Body parameters
+
+<ParamField body="sources" type="array" required>
+  Ordered list of PDF sources to merge. Minimum 2, maximum 5 on Starter, maximum
+  20 on Pro. Each element is either `{ "id": "rd_..." }` or `{ "url": "..." }`.
+  URL-based sources are not yet supported and return `501 not_implemented`.
+</ParamField>
+
+<ParamField body="sources[].id" type="string">
+  File ID of a previously rendered or uploaded PDF (`rd_[a-f0-9]{16}`). The file
+  must belong to the authenticated account.
+</ParamField>
+
+<ParamField body="filename" type="string">
+  Custom filename (max 255 chars, without extension). Surfaces in `Content-Disposition`
+  and in the CDN URL path.
+</ParamField>
+
+<ParamField body="storage" type="object">
+  Controls file visibility and signed URL behavior. Defaults to `{ "visibility": "public" }`.
+</ParamField>
+
+<ParamField body="storage.visibility" type="string" default="public">
+  `"public"` — permanent CDN URL, no signature needed.
+  `"private"` — HMAC-signed URL with a configurable TTL. Requires
+  `GET /api/v1/files/{id}` to refresh after expiry.
+</ParamField>
+
+<ParamField body="storage.signedUrlTtl" type="integer" default="3600">
+  Signed URL expiry in seconds. Range `60` – `604800` (7 days).
+  Only used when `storage.visibility` is `"private"`.
+</ParamField>
+
+<ParamField body="post" type="object">
+  Post-processing applied to the merged PDF. Same shape as `post` on
+  [`POST /api/v1/render`](/api-reference/render#post-processing).
+  Execution order: watermark → protection → linearize.
+</ParamField>
+
+## Response
+
+`Content-Type: application/json`
+
+```json
+{
+  "id": "rd_abc1234567890def",
+  "url": "https://cdn.rendio.dev/f/rd_abc1234567890def.pdf",
+  "pages": 7,
+  "size": 241920,
+  "expiresAt": "2026-05-24T12:00:00.000Z",
+  "urlExpiresAt": null,
+  "meta": {
+    "chromiumVersion": null,
+    "renderTimeMs": null
+  }
+}
+```
+
+<ResponseField name="id" type="string">
+  Opaque file ID. Use with `GET /api/v1/files/{id}`.
+</ResponseField>
+<ResponseField name="url" type="string">CDN URL. Signed with expiry for private files.</ResponseField>
+<ResponseField name="pages" type="integer">Page count of the merged PDF.</ResponseField>
+<ResponseField name="size" type="integer">File size in bytes.</ResponseField>
+<ResponseField name="expiresAt" type="string | null">
+  ISO 8601 timestamp when the file is deleted from storage.
+</ResponseField>
+<ResponseField name="urlExpiresAt" type="string | null">
+  ISO 8601 timestamp when the signed URL expires. `null` for public files.
+</ResponseField>
+<ResponseField name="meta.chromiumVersion" type="null">Always `null` for merge operations.</ResponseField>
+<ResponseField name="meta.renderTimeMs" type="null">Always `null` for merge operations.</ResponseField>
+
+## Errors
+
+| Code | HTTP | Notes |
+|---|---|---|
+| `validation_error` | 400 | Malformed body or invalid param |
+| `invalid_api_key` | 401 | Missing or revoked key |
+| `plan_limit` | 402 | `error.feature: "pdf_merge"` — Starter plan or above required, or source count exceeds plan limit |
+| `not_found` | 404 | A source file ID doesn't exist or doesn't belong to your account |
+| `not_implemented` | 501 | URL-based sources are not yet supported |
+| `rate_limit_exceeded` | 429 | Retry after `Retry-After` seconds |
+| `quota_exceeded` | 429 | Monthly quota or spending cap reached |
+| `concurrent_limit_exceeded` | 429 | Too many in-flight operations |
+| `render_timeout` | 408 | Merge > 60s — try fewer or smaller PDFs |
+| `server_busy` | 503 | Backend saturated — retry with backoff |
+
+Full taxonomy and retry rules: [Error codes](/api-reference/errors).
+
+## Examples
+
+<RequestExample>
+
+```bash cURL
+curl https://rendio.dev/api/v1/pdfs/merge \
+  -H "Authorization: Bearer $RENDIO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sources": [
+      { "id": "rd_cover1234567890ab" },
+      { "id": "rd_body1234567890cd" }
+    ],
+    "filename": "full-report"
+  }'
+```
+
+```ts Node
+import Rendio from "rendio";
+
+const rendio = new Rendio();
+
+const merged = await rendio.pdfs.merge({
+  sources: [
+    { id: "rd_cover1234567890ab" },
+    { id: "rd_body1234567890cd" },
+  ],
+  filename: "full-report",
+});
+
+console.log(merged.url);
+```
+
+```python Python
+import rendio
+
+client = rendio.Rendio()
+
+merged = client.pdfs.merge(
+    sources=[
+        {"id": "rd_cover1234567890ab"},
+        {"id": "rd_body1234567890cd"},
+    ],
+    filename="full-report",
+)
+
+print(merged.url)
+```
+
+```go Go
+import "github.com/rendio/rendio-go"
+
+merged, err := client.Pdfs.Merge(ctx, rendio.PdfMergeParams{
+    Sources: []rendio.PdfSource{
+        {ID: "rd_cover1234567890ab"},
+        {ID: "rd_body1234567890cd"},
+    },
+    Filename: rendio.String("full-report"),
+})
+if err != nil {
+    return err
+}
+fmt.Println(merged.URL)
+```
+
+</RequestExample>
+
+## Notes
+
+- **Quota cost.** Each merge call consumes **1 unit** from your monthly quota.
+- **Source count limits.** Starter plan allows up to **5 sources** per merge;
+  Pro allows up to **20 sources**. Exceeding the limit returns `plan_limit` with
+  `error.feature: "pdf_merge"`.
+- **Total input size.** Starter is capped at **50 MB** total input; Pro at
+  **200 MB**. Exceeding returns `plan_limit` with `error.feature: "pdf_merge"`.
+- **URL sources.** Passing `{ "url": "..." }` as a source returns
+  `501 not_implemented`. Use file IDs from previous render or merge operations.
+- **Retention.** Starter/Pro = 30 days. Past the window the CDN URL returns `404`.

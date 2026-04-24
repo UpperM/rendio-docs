@@ -17,7 +17,9 @@ https://rendio.dev
 | Method | Path | Purpose |
 |---|---|---|
 | `POST` | [`/api/v1/render`](/api-reference/render) | Render HTML or a URL to PDF/PNG/JPEG |
-| `GET` | `/api/v1/files/{id}` | Fetch metadata for a previously rendered file |
+| `POST` | [`/api/v1/pdfs/merge`](/api-reference/merge) | Merge multiple PDFs into one |
+| `POST` | [`/api/v1/pdfs/extract`](/api-reference/extract) | Extract pages from a PDF |
+| `GET` | [`/api/v1/files/{id}`](/api-reference/files) | Fetch metadata for a previously rendered file |
 | `GET` | `/api/health` | Liveness probe |
 
 ## Authentication

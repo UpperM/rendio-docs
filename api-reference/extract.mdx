@@ -1,0 +1,180 @@
+---
+title: "POST /api/v1/pdfs/extract"
+description: "Extract pages from a PDF."
+api: "POST https://rendio.dev/api/v1/pdfs/extract"
+---
+
+Extracts a subset of pages from an existing PDF (by file ID) and returns the
+result as a new PDF. **Starter plan or above.**
+
+## Authentication
+
+Bearer token. See [Authentication](/authentication).
+
+```
+Authorization: Bearer rk_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+## Body parameters
+
+<ParamField body="source" type="object" required>
+  PDF to extract pages from. Either `{ "id": "rd_..." }` or `{ "url": "..." }`.
+  URL-based sources are not yet supported and return `501 not_implemented`.
+</ParamField>
+
+<ParamField body="source.id" type="string">
+  File ID of a previously rendered or uploaded PDF (`rd_[a-f0-9]{16}`). The file
+  must belong to the authenticated account.
+</ParamField>
+
+<ParamField body="pageRanges" type="string" required>
+  Page ranges to extract in Chromium format (1-indexed). See examples below.
+</ParamField>
+
+<ParamField body="filename" type="string">
+  Custom filename (max 255 chars, without extension). Surfaces in `Content-Disposition`
+  and in the CDN URL path.
+</ParamField>
+
+<ParamField body="storage" type="object">
+  Controls file visibility and signed URL behavior. Defaults to `{ "visibility": "public" }`.
+</ParamField>
+
+<ParamField body="storage.visibility" type="string" default="public">
+  `"public"` — permanent CDN URL, no signature needed.
+  `"private"` — HMAC-signed URL with a configurable TTL. Requires
+  `GET /api/v1/files/{id}` to refresh after expiry.
+</ParamField>
+
+<ParamField body="storage.signedUrlTtl" type="integer" default="3600">
+  Signed URL expiry in seconds. Range `60` – `604800` (7 days).
+  Only used when `storage.visibility` is `"private"`.
+</ParamField>
+
+<ParamField body="post" type="object">
+  Post-processing applied to the extracted PDF. Same shape as `post` on
+  [`POST /api/v1/render`](/api-reference/render#post-processing).
+  Execution order: watermark → protection → linearize.
+</ParamField>
+
+## Response
+
+`Content-Type: application/json`
+
+```json
+{
+  "id": "rd_abc1234567890def",
+  "url": "https://cdn.rendio.dev/f/rd_abc1234567890def.pdf",
+  "pages": 3,
+  "size": 98304,
+  "expiresAt": "2026-05-24T12:00:00.000Z",
+  "urlExpiresAt": null,
+  "meta": {
+    "chromiumVersion": null,
+    "renderTimeMs": null
+  }
+}
+```
+
+<ResponseField name="id" type="string">
+  Opaque file ID. Use with `GET /api/v1/files/{id}`.
+</ResponseField>
+<ResponseField name="url" type="string">CDN URL. Signed with expiry for private files.</ResponseField>
+<ResponseField name="pages" type="integer">Page count of the extracted PDF.</ResponseField>
+<ResponseField name="size" type="integer">File size in bytes.</ResponseField>
+<ResponseField name="expiresAt" type="string | null">
+  ISO 8601 timestamp when the file is deleted from storage.
+</ResponseField>
+<ResponseField name="urlExpiresAt" type="string | null">
+  ISO 8601 timestamp when the signed URL expires. `null` for public files.
+</ResponseField>
+<ResponseField name="meta.chromiumVersion" type="null">Always `null` for extract operations.</ResponseField>
+<ResponseField name="meta.renderTimeMs" type="null">Always `null` for extract operations.</ResponseField>
+
+## Errors
+
+| Code | HTTP | Notes |
+|---|---|---|
+| `validation_error` | 400 | Malformed body or invalid param |
+| `invalid_api_key` | 401 | Missing or revoked key |
+| `plan_limit` | 402 | `error.feature: "pdf_extract"` — Starter plan or above required, or source exceeds size limit |
+| `not_found` | 404 | The source file ID doesn't exist or doesn't belong to your account |
+| `not_implemented` | 501 | URL-based sources are not yet supported |
+| `rate_limit_exceeded` | 429 | Retry after `Retry-After` seconds |
+| `quota_exceeded` | 429 | Monthly quota or spending cap reached |
+| `concurrent_limit_exceeded` | 429 | Too many in-flight operations |
+| `render_timeout` | 408 | Extract > 60s — try with a smaller PDF |
+| `server_busy` | 503 | Backend saturated — retry with backoff |
+
+Full taxonomy and retry rules: [Error codes](/api-reference/errors).
+
+## Examples
+
+<RequestExample>
+
+```bash cURL
+curl https://rendio.dev/api/v1/pdfs/extract \
+  -H "Authorization: Bearer $RENDIO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source": { "id": "rd_abc1234567890def" },
+    "pageRanges": "1-3",
+    "filename": "summary"
+  }'
+```
+
+```ts Node
+import Rendio from "rendio";
+
+const rendio = new Rendio();
+
+const extracted = await rendio.pdfs.extract({
+  source: { id: "rd_abc1234567890def" },
+  pageRanges: "1-3",
+  filename: "summary",
+});
+
+console.log(extracted.url);
+```
+
+```python Python
+import rendio
+
+client = rendio.Rendio()
+
+extracted = client.pdfs.extract(
+    source={"id": "rd_abc1234567890def"},
+    page_ranges="1-3",
+    filename="summary",
+)
+
+print(extracted.url)
+```
+
+```go Go
+import "github.com/rendio/rendio-go"
+
+extracted, err := client.Pdfs.Extract(ctx, rendio.PdfExtractParams{
+    Source:     rendio.PdfSource{ID: "rd_abc1234567890def"},
+    PageRanges: "1-3",
+    Filename:   rendio.String("summary"),
+})
+if err != nil {
+    return err
+}
+fmt.Println(extracted.URL)
+```
+
+</RequestExample>
+
+## Notes
+
+- **Quota cost.** Each extract call consumes **1 unit** from your monthly quota.
+- **Source size limit.** Source PDF must be **50 MB or smaller**.
+- **URL sources.** Passing `{ "url": "..." }` as the source returns
+  `501 not_implemented`. Use a file ID from a previous render or merge.
+- **`pageRanges` format.** Uses Chromium's page range syntax (1-indexed):
+  - `"1-3"` — pages 1, 2, and 3
+  - `"1, 3, 5-7"` — pages 1, 3, 5, 6, and 7
+  - `"2-"` — page 2 through the last page
+- **Retention.** Starter/Pro = 30 days. Past the window the CDN URL returns `404`.

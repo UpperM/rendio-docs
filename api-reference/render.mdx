@@ -176,6 +176,85 @@ Authorization: Bearer rk_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
   Render `background-color` and `background-image`.
 </ParamField>
 
+### Post-processing
+
+Post-processing steps applied after rendering. Execution order: watermark → protection → linearize.
+
+<ParamField body="post" type="object">
+  Post-processing options. All sub-fields are optional; omit `post` entirely to skip post-processing.
+</ParamField>
+
+<ParamField body="post.watermark" type="object">
+  Overlay a text or image watermark on every page. Exactly one of `text` or `image` must be provided.
+  **Text watermark: Starter plan or above. Image watermark: Pro plan only.**
+</ParamField>
+
+<ParamField body="post.watermark.text" type="string">
+  Watermark text (max 500 chars). Mutually exclusive with `image`.
+</ParamField>
+
+<ParamField body="post.watermark.image" type="string">
+  Base64 data URI of a PNG or JPEG image (e.g. `data:image/png;base64,...`). Max ~2 MB encoded.
+  Mutually exclusive with `text`. **Pro plan only.**
+</ParamField>
+
+<ParamField body="post.watermark.opacity" type="number" default="0.3">
+  Watermark opacity. Range `0` – `1`.
+</ParamField>
+
+<ParamField body="post.watermark.rotation" type="number" default="-45">
+  Rotation in degrees. Range `-360` – `360`.
+</ParamField>
+
+<ParamField body="post.watermark.position" type="string">
+  Watermark placement. One of `center`, `top-left`, `top-right`, `bottom-left`, `bottom-right`.
+</ParamField>
+
+<ParamField body="post.watermark.repeat" type="boolean" default="false">
+  Tile the watermark across the entire page.
+</ParamField>
+
+<ParamField body="post.watermark.fontSize" type="number" default="60">
+  Font size in pt. Range `1` – `200`. Text watermarks only.
+</ParamField>
+
+<ParamField body="post.watermark.color" type="string" default="#000000">
+  Hex color code (e.g. `#FF0000`). Text watermarks only.
+</ParamField>
+
+<ParamField body="post.protection" type="object">
+  Encrypt the PDF. At least one of `password` or `ownerPassword` must be provided.
+</ParamField>
+
+<ParamField body="post.protection.password" type="string">
+  User password required to open the document. 4 – 128 characters.
+</ParamField>
+
+<ParamField body="post.protection.ownerPassword" type="string">
+  Owner (permissions) password. 4 – 128 characters. Controls the permission flags below.
+</ParamField>
+
+<ParamField body="post.protection.permissions.print" type="boolean" default="true">
+  Allow printing.
+</ParamField>
+
+<ParamField body="post.protection.permissions.copy" type="boolean" default="true">
+  Allow copying text and images.
+</ParamField>
+
+<ParamField body="post.protection.permissions.modify" type="boolean" default="false">
+  Allow modifying the document.
+</ParamField>
+
+<ParamField body="post.protection.permissions.annotate" type="boolean" default="true">
+  Allow adding annotations.
+</ParamField>
+
+<ParamField body="post.linearize" type="boolean" default="false">
+  Optimize the PDF for fast web viewing (linearization / "fast web view").
+  **Pro plan only.**
+</ParamField>
+
 ## Response — URL mode
 
 `Content-Type: application/json`
@@ -226,7 +305,7 @@ Raw bytes in the response body.
 | `validation_error` | 400 | Malformed body or invalid param |
 | `url_blocked` | 400 | `source` blocked by SSRF policy |
 | `invalid_api_key` | 401 | Missing / revoked key |
-| `plan_limit` | 402 | `error.feature` names the gate (`url_to_pdf`, `tagged_pdf`, `custom_js_execution`, `external_resources`, `page_count`) |
+| `plan_limit` | 402 | `error.feature` names the gate (`url_to_pdf`, `tagged_pdf`, `custom_js_execution`, `external_resources`, `page_count`, `text_watermark`, `image_watermark`, `pdf_protection`, `linearize`, `pdf_merge`, `pdf_extract`) |
 | `render_timeout` | 408 | Render > 30s |
 | `idempotency_conflict` | 409 | Key reused with different body (or still in flight) |
 | `html_too_large` | 413 | `html` > 1 MB (CSS &gt; 1 MB returns `validation_error` / 400) |

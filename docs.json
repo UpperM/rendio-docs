@@ -136,6 +136,8 @@
             "group": "Endpoints",
             "pages": [
               "api-reference/render",
+              "api-reference/merge",
+              "api-reference/extract",
               "api-reference/files",
               "api-reference/health"
             ]
